@@ -5,6 +5,8 @@ members = [
 	"mako-fristen",
 	"mako-quittung",
 	"mako-gpke",
+	"mako-wim",
+	"mako-ubp",
 	"mako-testdata",
 ]
 

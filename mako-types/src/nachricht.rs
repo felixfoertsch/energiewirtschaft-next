@@ -31,4 +31,14 @@ pub enum NachrichtenPayload {
 	UtilmdZuordnungsliste(UtilmdZuordnungsliste),
 	UtilmdGeschaeftsdatenanfrage(UtilmdGeschaeftsdatenanfrage),
 	UtilmdGeschaeftsdatenantwort(UtilmdGeschaeftsdatenantwort),
+	// WiM
+	UtilmdMsbWechselAnmeldung(UtilmdMsbWechselAnmeldung),
+	UtilmdGeraetewechsel(UtilmdGeraetewechsel),
+	OrdersWerteAnfrage(OrdersWerteAnfrage),
+	// UBP
+	ReqoteAngebotsanfrage(ReqoteAngebotsanfrage),
+	QuotesAngebot(QuotesAngebot),
+	OrdersBestellung(OrdersBestellung),
+	OrdrspBestellantwort(OrdrspBestellantwort),
+	PricatPreisblatt(PricatPreisblatt),
 }

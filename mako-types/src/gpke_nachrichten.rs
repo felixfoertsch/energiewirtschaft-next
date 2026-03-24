@@ -1,7 +1,7 @@
 use chrono::{NaiveDate, NaiveDateTime};
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{MaLoId, MarktpartnerId};
+use crate::ids::{MaLoId, MeLoId, MarktpartnerId};
 
 /// UTILMD Anmeldung: LFN -> NB (GPKE 1.1.1)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -137,4 +137,82 @@ pub struct UtilmdGeschaeftsdatenanfrage {
 pub struct UtilmdGeschaeftsdatenantwort {
 	pub malo_id: MaLoId,
 	pub stammdaten: Vec<Stammdatenfeld>,
+}
+
+// === WiM Message Types ===
+
+/// UTILMD MSB-Wechsel Anmeldung: MSB_neu -> NB (WiM 2.1.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UtilmdMsbWechselAnmeldung {
+	pub melo_id: MeLoId,
+	pub msb_neu: MarktpartnerId,
+	pub wechseldatum: NaiveDate,
+}
+
+/// UTILMD Gerätewechsel: MSB -> NB (WiM 2.2.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UtilmdGeraetewechsel {
+	pub melo_id: MeLoId,
+	pub alte_geraete_nr: String,
+	pub neue_geraete_nr: String,
+	pub wechseldatum: NaiveDate,
+}
+
+/// ORDERS Werte-Anfrage: LF/ESA -> MSB (WiM 2.4.1/2.4.3)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OrdersWerteAnfrage {
+	pub malo_id: MaLoId,
+	pub anfragender: MarktpartnerId,
+	pub zeitraum_von: NaiveDate,
+	pub zeitraum_bis: NaiveDate,
+}
+
+// === UBP Message Types ===
+
+/// REQOTE Angebotsanfrage: LF/NB -> MSB (UBP 3.1.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReqoteAngebotsanfrage {
+	pub melo_id: MeLoId,
+	pub anfragender: MarktpartnerId,
+	pub produkt_beschreibung: String,
+}
+
+/// QUOTES Angebot: MSB -> LF/NB (UBP 3.1.2)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct QuotesAngebot {
+	pub melo_id: MeLoId,
+	pub anbieter: MarktpartnerId,
+	pub preis_ct_pro_monat: f64,
+	pub produkt_beschreibung: String,
+}
+
+/// ORDERS Bestellung: LF/NB -> MSB (UBP 3.1.3)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OrdersBestellung {
+	pub melo_id: MeLoId,
+	pub besteller: MarktpartnerId,
+	pub referenz_angebot: String,
+}
+
+/// ORDRSP Bestellantwort: MSB -> LF/NB (UBP 3.1.4)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OrdrspBestellantwort {
+	pub melo_id: MeLoId,
+	pub angenommen: bool,
+	pub grund: Option<String>,
+}
+
+/// PRICAT Preisblatt: MSB -> NB/LF (UBP 3.3.1-3.3.3)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PricatPreisblatt {
+	pub herausgeber: MarktpartnerId,
+	pub gueltig_ab: NaiveDate,
+	pub positionen: Vec<PreisPosition>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PreisPosition {
+	pub bezeichnung: String,
+	pub preis_ct: f64,
+	pub einheit: String,
 }
