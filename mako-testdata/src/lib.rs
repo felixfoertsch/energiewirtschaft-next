@@ -3,3 +3,4 @@ pub mod mscons;
 pub mod utilmd;
 pub mod quittungen;
 pub mod szenarien;
+pub mod szenarien_historisch;

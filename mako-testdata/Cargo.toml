@@ -8,3 +8,6 @@ chrono = { workspace = true }
 mako-types = { path = "../mako-types" }
 mako-fristen = { path = "../mako-fristen" }
 mako-gpke = { path = "../mako-gpke" }
+mako-wim = { path = "../mako-wim" }
+mako-mabis = { path = "../mako-mabis" }
+mako-geli = { path = "../mako-geli" }
