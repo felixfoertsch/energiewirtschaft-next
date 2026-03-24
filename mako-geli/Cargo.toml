@@ -1,0 +1,14 @@
+[package]
+name = "mako-geli"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+mako-types = { path = "../mako-types" }
+mako-fristen = { path = "../mako-fristen" }
+mako-gasumrechnung = { path = "../mako-gasumrechnung" }
+chrono = { workspace = true }
+
+[dev-dependencies]
+mako-testdata = { path = "../mako-testdata" }
+mako-quittung = { path = "../mako-quittung" }

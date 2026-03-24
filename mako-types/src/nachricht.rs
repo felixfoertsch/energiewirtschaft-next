@@ -63,4 +63,10 @@ pub enum NachrichtenPayload {
 	// §14a EnWG
 	UtilmdSteuerbareVerbrauchseinrichtung(UtilmdSteuerbareVerbrauchseinrichtung),
 	ClsSteuersignal(ClsSteuersignal),
+	// Gas
+	Nominierung(Nominierung),
+	NominierungBestaetigung(NominierungBestaetigung),
+	Renominierung(Renominierung),
+	MsconsBrennwert(MsconsBrennwert),
+	UtilmdAusspeisepunkt(UtilmdAusspeisepunkt),
 }

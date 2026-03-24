@@ -426,3 +426,51 @@ pub enum Steuerungsart {
 	Abschaltung,
 	Freigabe,
 }
+
+// === Gas-specific Types ===
+
+/// Nominierung: BKV -> MGV (GABi Gas 4.3.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Nominierung {
+	pub bilanzkreis: String,
+	pub zeitreihe_soll: Vec<Messwert>, // hourly values
+}
+
+/// Nominierungsbestätigung: MGV -> BKV (GABi Gas 4.3.2)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct NominierungBestaetigung {
+	pub bilanzkreis: String,
+	pub matching_ergebnis: MatchingErgebnis,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum MatchingErgebnis {
+	Bestaetigt,
+	TeilweiseBestaetigt { bestaetigte_menge_kwh: f64 },
+	Abgelehnt { grund: String },
+}
+
+/// Renominierung: BKV -> MGV (GABi Gas 4.3.3)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Renominierung {
+	pub bilanzkreis: String,
+	pub zeitreihe_soll: Vec<Messwert>,
+}
+
+/// MSCONS Brennwertmitteilung: FNB/NB -> LF (KoV 5.3.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MsconsBrennwert {
+	pub netzgebiet: String,
+	pub brennwert_kwh_per_m3: f64,
+	pub zustandszahl: f64,
+	pub gueltig_ab: NaiveDate,
+	pub gueltig_bis: NaiveDate,
+}
+
+/// UTILMD Ausspeisepunkt: NB -> FNB (KoV 5.4.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UtilmdAusspeisepunkt {
+	pub malo_id: MaLoId,
+	pub nb: MarktpartnerId,
+	pub fnb: MarktpartnerId,
+}

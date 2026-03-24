@@ -13,6 +13,10 @@ members = [
 	"mako-mpes",
 	"mako-rd2",
 	"mako-14a",
+	"mako-gasumrechnung",
+	"mako-geli",
+	"mako-gabi",
+	"mako-kov",
 ]
 
 [workspace.package]
