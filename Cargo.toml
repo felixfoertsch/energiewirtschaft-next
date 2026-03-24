@@ -17,6 +17,8 @@ members = [
 	"mako-geli",
 	"mako-gabi",
 	"mako-kov",
+	"mako-codec",
+	"mako-sim",
 ]
 
 [workspace.package]
