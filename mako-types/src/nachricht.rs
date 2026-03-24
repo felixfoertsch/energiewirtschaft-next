@@ -49,4 +49,18 @@ pub enum NachrichtenPayload {
 	// Abrechnung
 	InvoicRechnung(InvoicRechnung),
 	RemadvZahlungsavis(RemadvZahlungsavis),
+	// MPES
+	UtilmdAnmeldungErzeugung(UtilmdAnmeldungErzeugung),
+	MsconsEinspeiseMesswerte(MsconsEinspeiseMesswerte),
+	// Redispatch 2.0
+	RdStammdaten(RdStammdaten),
+	RdFahrplan(RdFahrplan),
+	RdAktivierung(RdAktivierung),
+	RdBestaetigung(RdBestaetigung),
+	RdEngpass(RdEngpass),
+	RdNichtverfuegbarkeit(RdNichtverfuegbarkeit),
+	RdKostenblatt(RdKostenblatt),
+	// §14a EnWG
+	UtilmdSteuerbareVerbrauchseinrichtung(UtilmdSteuerbareVerbrauchseinrichtung),
+	ClsSteuersignal(ClsSteuersignal),
 }

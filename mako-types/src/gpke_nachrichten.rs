@@ -1,7 +1,7 @@
 use chrono::{NaiveDate, NaiveDateTime};
 use serde::{Deserialize, Serialize};
 
-use crate::ids::{MaLoId, MeLoId, MarktpartnerId};
+use crate::ids::{MaLoId, MarktpartnerId, MeLoId};
 
 /// UTILMD Anmeldung: LFN -> NB (GPKE 1.1.1)
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -306,4 +306,123 @@ pub struct RemadvZahlungsavis {
 	pub betrag_ct: i64,
 	pub akzeptiert: bool,
 	pub ablehnungsgrund: Option<String>,
+}
+
+// === MPES Message Types ===
+
+/// UTILMD Anmeldung Erzeugungsanlage: BV/DP -> NB (MPES 5.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UtilmdAnmeldungErzeugung {
+	pub malo_id: MaLoId,
+	pub anlagenbetreiber: MarktpartnerId,
+	pub eeg_anlage: bool,
+	pub installierte_leistung_kw: f64,
+}
+
+/// MSCONS Einspeise-Messwerte (MPES 5.4-5.6)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MsconsEinspeiseMesswerte {
+	pub malo_id: MaLoId,
+	pub werte: Vec<Messwert>,
+}
+
+// === Redispatch 2.0 Message Types (XML-based) ===
+
+/// XML Stammdaten Technische/Steuerbare Ressourcen (RD 7.1.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RdStammdaten {
+	pub ressource_id: String,
+	pub ressource_typ: RessourceTyp,
+	pub standort_malo: MaLoId,
+	pub installierte_leistung_kw: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RessourceTyp {
+	TechnischeRessource,
+	SteuerbareRessource,
+}
+
+/// PlannedResourceScheduleDocument (RD 7.2.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RdFahrplan {
+	pub ressource_id: String,
+	pub zeitreihe: Vec<Messwert>,
+}
+
+/// ActivationDocument: Redispatch-Abruf (RD 7.3.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RdAktivierung {
+	pub ressource_id: String,
+	pub sollwert_kw: f64,
+	pub start: NaiveDateTime,
+	pub ende: NaiveDateTime,
+}
+
+/// AcknowledgementDocument (RD 7.1.3, 7.2.3, 7.3.3)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RdBestaetigung {
+	pub referenz_dokument_id: String,
+	pub akzeptiert: bool,
+	pub grund: Option<String>,
+}
+
+/// NetworkConstraintDocument (RD 7.4.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RdEngpass {
+	pub netzgebiet: String,
+	pub engpass_start: NaiveDateTime,
+	pub engpass_ende: NaiveDateTime,
+	pub betroffene_leistung_kw: f64,
+}
+
+/// Unavailability_MarketDocument (RD 7.4.2)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RdNichtverfuegbarkeit {
+	pub ressource_id: String,
+	pub von: NaiveDateTime,
+	pub bis: NaiveDateTime,
+	pub grund: String,
+}
+
+/// Kostenblatt (RD 7.5.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RdKostenblatt {
+	pub ressource_id: String,
+	pub kosten_ct: i64,
+	pub massnahme_start: NaiveDateTime,
+	pub massnahme_ende: NaiveDateTime,
+}
+
+// === §14a EnWG Message Types ===
+
+/// UTILMD Anmeldung steuerbare Verbrauchseinrichtung (§14a 8.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UtilmdSteuerbareVerbrauchseinrichtung {
+	pub malo_id: MaLoId,
+	pub geraetetyp: SteuerbarerGeraetetyp,
+	pub max_leistung_kw: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SteuerbarerGeraetetyp {
+	Waermepumpe,
+	Wallbox,
+	Speicher,
+	Sonstiges(String),
+}
+
+/// CLS-Kanal Steuersignal (§14a 8.4)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClsSteuersignal {
+	pub malo_id: MaLoId,
+	pub steuerung: Steuerungsart,
+	pub zeitpunkt: NaiveDateTime,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Steuerungsart {
+	Dimmung { prozent: u8 },
+	Abschaltung,
+	Freigabe,
 }

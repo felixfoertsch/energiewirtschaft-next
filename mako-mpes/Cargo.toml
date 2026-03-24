@@ -1,0 +1,12 @@
+[package]
+name = "mako-mpes"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+mako-types = { path = "../mako-types" }
+mako-fristen = { path = "../mako-fristen" }
+chrono = { workspace = true }
+
+[dev-dependencies]
+mako-testdata = { path = "../mako-testdata" }

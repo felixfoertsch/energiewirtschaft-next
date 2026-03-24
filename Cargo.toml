@@ -10,6 +10,9 @@ members = [
 	"mako-mabis",
 	"mako-abrechnung",
 	"mako-testdata",
+	"mako-mpes",
+	"mako-rd2",
+	"mako-14a",
 ]
 
 [workspace.package]
