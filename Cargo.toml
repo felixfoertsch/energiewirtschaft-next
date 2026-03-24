@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = [
+	"mako-types",
+	"mako-fristen",
+	"mako-quittung",
+	"mako-gpke",
+	"mako-testdata",
+]
+
+[workspace.package]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/felixfoertsch/energiewirtschaft-next"
+
+[workspace.dependencies]
+chrono = { version = "0.4", default-features = false, features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"

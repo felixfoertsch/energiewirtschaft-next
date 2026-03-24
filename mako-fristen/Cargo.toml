@@ -1,0 +1,8 @@
+[package]
+name = "mako-fristen"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+chrono = { workspace = true }
+mako-types = { path = "../mako-types" }
