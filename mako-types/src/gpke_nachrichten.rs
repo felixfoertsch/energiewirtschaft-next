@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use chrono::{NaiveDate, NaiveDateTime};
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{MaLoId, MarktpartnerId};
@@ -72,6 +72,29 @@ pub struct MsconsSchlussturnusmesswert {
 	pub zaehlerstand: f64,
 	pub stichtag: NaiveDate,
 	pub einheit: String,
+}
+
+/// MSCONS Lastgang: time series of energy values (15-min or hourly intervals)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MsconsLastgang {
+	pub malo_id: MaLoId,
+	pub werte: Vec<Messwert>,
+	pub intervall_minuten: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Messwert {
+	pub zeitpunkt: NaiveDateTime,
+	pub wert: f64,
+	pub einheit: String,
+	pub status: MesswertStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MesswertStatus {
+	Gemessen,
+	Ersatzwert,
+	Vorläufig,
 }
 
 /// UTILMD Stammdatenaenderung (generic, used for GPKE 1.3.1-1.3.5)

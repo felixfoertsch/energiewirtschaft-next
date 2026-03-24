@@ -26,6 +26,7 @@ pub enum NachrichtenPayload {
 	UtilmdLieferendeAbmeldung(UtilmdLieferendeAbmeldung),
 	UtilmdLieferendeBestaetigung(UtilmdLieferendeBestaetigung),
 	MsconsSchlussturnusmesswert(MsconsSchlussturnusmesswert),
+	MsconsLastgang(MsconsLastgang),
 	UtilmdStammdatenaenderung(UtilmdStammdatenaenderung),
 	UtilmdZuordnungsliste(UtilmdZuordnungsliste),
 	UtilmdGeschaeftsdatenanfrage(UtilmdGeschaeftsdatenanfrage),
