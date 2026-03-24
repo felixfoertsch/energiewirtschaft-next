@@ -2,8 +2,7 @@
 
 **Datum:** 2026-03-24
 **Status:** Entwurf
-**Ziel-Formatversion:** FV2504 (aktuell gültig ab 04.04.2025). Formatversionsevolution wird über Enum-Varianten und Feature-Gates gelöst — kein Fork pro Version, sondern additive Erweiterung der Typen.
-**Ziel:** Beweisbar korrekte, funktional modellierte Referenzimplementierung der deutschen energiewirtschaftlichen Marktkommunikation (Strom + Gas) in Rust — einsetzbar als produktives System auf Cloudflare Edge, FaaS oder WASM.
+**Ziel:** Beweisbar korrekte, funktional modellierte Referenzimplementierung der deutschen energiewirtschaftlichen Marktkommunikation (Strom + Gas) in Rust — einsetzbar als produktives System auf Cloudflare Edge, FaaS oder WASM. Das System bildet die gesamte MaKo-Historie ab: jede Formatversion seit MaKo 2017 existiert als eigener Satz pure Functions. Neue Versionen kommen hinzu, alte bleiben bestehen.
 
 ---
 
@@ -151,16 +150,45 @@ Diese haben keinen eigenen Reducer, sondern werden als Nachrichtentypen von mehr
 - Feiertagskalender als Daten, nicht als Code (ladbar, erweiterbar)
 - Zeitumstellung: Gastag hat immer 24h, Stromtag hat 23 oder 25h
 
-### 3.6  Formatversionierung
+### 3.6  Formatversionierung — Vollständige Historie
 
-Ziel-Formatversion: **FV2504** (gültig ab 04.04.2025, inkl. LFW24).
+Das System bildet nicht nur den Status quo ab, sondern die gesamte Entwicklung der MaKo seit ihrer Einführung. Jede Formatversion, die jemals gültig war (oder noch ist), existiert als eigener Satz pure Functions. Neue Versionen kommen hinzu, alte bleiben bestehen — nichts wird gelöscht oder überschrieben.
 
-Strategie für Versionsevolution:
+**MaKo-Epochen:**
 
-- Neue Felder/Varianten werden additiv als Enum-Varianten oder optionale Felder ergänzt
-- Veraltete Varianten werden mit `#[deprecated]` markiert, nicht gelöscht
-- Der Codec (Phase 10) übernimmt das Mapping zwischen Formatversion und internem Modell
-- Kein Fork pro Formatversion — ein Typsystem, ein Reducer, versionsbewusster Codec
+| Epoche | Gültig ab | Kernänderung | Betroffene Prozesse |
+|--------|-----------|--------------|---------------------|
+| MaKo 2017 | 10/2017 | MaLo/MeLo-Modell, MSB als neue Rolle | GPKE, WiM |
+| MaKo 2020 | 02/2020 | Neue GPKE, WiM, MaBiS, MPES | Alle Strom |
+| RD 2.0 | 10/2021 | XML-Formate für Redispatch | RD 2.0 (neu) |
+| MaKo 2022 | 10/2023 | Erweiterte Netzzugangsprozesse | GPKE, WiM, MaBiS |
+| AS4-Pflicht | 04/2024 | Neuer Übertragungsweg | Transport (alle) |
+| FV2504/LFW24 | 06/2025 | 24h-Lieferantenwechsel, API-Webdienste | GPKE, REST-API |
+| GeLi Gas 3.0 | ~2026 | Überarbeitete Gas-Prozesse | GeLi Gas |
+| MaBiS-Hub | ~2028 | Zentrale Plattform statt bilateral | MaBiS |
+
+**Architektur-Prinzip: Funktionen, nicht Mutationen**
+
+Jede Epoche ist ein Modul innerhalb des Prozess-Crates:
+
+```rust
+// Jede Version ist ein eigener Reducer — gleicher Trait, andere Logik
+mod gpke {
+    pub mod v2017 { pub fn reduce(state: LfwState, event: LfwEvent) -> ... }
+    pub mod v2020 { pub fn reduce(state: LfwState, event: LfwEvent) -> ... }
+    pub mod v2022 { pub fn reduce(state: LfwState, event: LfwEvent) -> ... }
+    pub mod v2025 { pub fn reduce(state: LfwState, event: LfwEvent) -> ... }
+}
+```
+
+- **Gemeinsames Typsystem:** Alle Versionen teilen `mako-types`. Neue Felder werden additiv ergänzt (optionale Felder für ältere Versionen, Pflichtfelder für neuere).
+- **Eigene State Machines:** Jede Version hat ihre eigenen States/Events, da sich die Zustandsübergänge zwischen Versionen ändern (z.B. LFW24 hat andere Fristen als LFW pre-2025).
+- **Version-Dispatcher:** Ein `fn dispatch(version: MakoVersion, state, event)` wählt den richtigen Reducer. Komposition: der Dispatcher ist selbst eine pure Function.
+- **Codec-Verantwortung:** Der Codec (Phase 10) erkennt die Formatversion einer eingehenden Nachricht und routet zum korrekten Reducer. Ausgehende Nachrichten werden in der geforderten Formatversion serialisiert.
+- **Tests pro Version:** Jede Version hat ihren eigenen Testsatz. So ist beweisbar, dass die v2020-Logik korrekt ist UND die v2025-Logik korrekt ist — unabhängig voneinander.
+- **Zeitreise:** Das System kann beliebige historische Szenarien durchspielen. Das ermöglicht Audits, Schulungen und die Verifikation von Altdaten.
+
+**Priorisierung:** Wir beginnen mit der aktuellsten Version (FV2504/LFW24) und arbeiten uns rückwärts. Ältere Versionen werden als zusätzliche Module ergänzt, sobald die aktuelle Version steht.
 
 ---
 
@@ -279,13 +307,21 @@ Eigener Generator (`mako-testdata`) weil 87% der EDIFACT-Testdaten nicht öffent
 | 2.2 | APERAK-Prüfer (EBD, zunächst GPKE-LFW) | `mako-quittung` |
 | 2.3 | Decorator mit getrenntem Routing (Quittungen vs. Prozessnachrichten) | `mako-quittung` |
 
-### Phase 3: Erster Reducer — GPKE Lieferantenwechsel (LFW24)
-
-Der Reducer modelliert den **post-LFW24-Prozess** (gültig ab 06.06.2025) als primären Pfad. Der pre-LFW24-Prozess wird nicht separat implementiert, da FV2504 die Ziel-Formatversion ist.
+### Phase 1b: Versions-Infrastruktur
 
 | # | Aufgabe | Crate |
 |---|---------|-------|
-| 3.1 | LfwState + LfwEvent Enums | `mako-gpke` |
+| 1b.1 | `MakoVersion`-Enum (V2017, V2020, V2022, V2025, ...) | `mako-types` |
+| 1b.2 | Versions-Modul-Konvention: `crate::v2025::reduce()` Pattern | `mako-types` |
+| 1b.3 | Version-Dispatcher-Trait | `mako-types` |
+
+### Phase 3: Erster Reducer — GPKE Lieferantenwechsel
+
+Wir beginnen mit der aktuellsten Version (**v2025**, post-LFW24, gültig ab 06.06.2025) als `mako-gpke::v2025`. Ältere Versionen (v2022, v2020, v2017) werden als separate Module im selben Crate ergänzt, sobald die aktuelle Version steht.
+
+| # | Aufgabe | Crate |
+|---|---------|-------|
+| 3.1 | `v2025::LfwState` + `v2025::LfwEvent` Enums | `mako-gpke` |
 | 3.2 | Tests: gültige Übergänge (Happy Path) | `mako-gpke` |
 | 3.3 | Tests: ungültige Übergänge | `mako-gpke` |
 | 3.4 | Tests: Edge Cases (EC4, EC5, EC6) | `mako-gpke` |
@@ -351,15 +387,30 @@ Der Reducer modelliert den **post-LFW24-Prozess** (gültig ab 06.06.2025) als pr
 | 9.5 | KoV Kapazitätsmanagement | `mako-kov` |
 | 9.6 | Nominierung/Renominierung | `mako-kov` |
 
-### Phase 10: Codec + Simulation
+### Phase 10: Historische Versionen
+
+Rückwärts von v2025 aus. Jede Version ist ein neues Modul im jeweiligen Prozess-Crate mit eigenem Testsatz.
+
+| # | Aufgabe | Crates |
+|---|---------|--------|
+| 10.1 | GPKE v2022 (MaKo 2022) — States, Events, Reducer, Tests | `mako-gpke` |
+| 10.2 | GPKE v2020 (MaKo 2020) — States, Events, Reducer, Tests | `mako-gpke` |
+| 10.3 | GPKE v2017 (MaKo 2017) — States, Events, Reducer, Tests | `mako-gpke` |
+| 10.4 | WiM historische Versionen (v2020, v2022) | `mako-wim` |
+| 10.5 | MaBiS historische Versionen | `mako-mabis` |
+| 10.6 | GeLi Gas historische Versionen | `mako-geli` |
+| 10.7 | Version-Dispatcher: routing nach MakoVersion für alle Crates | alle Prozess-Crates |
+| 10.8 | Historische Testszenarien: Altdaten-Verifikation, Epochen-Übergänge | `mako-testdata` |
+
+### Phase 11: Codec + Simulation
 
 | # | Aufgabe | Crate |
 |---|---------|-------|
-| 10.1 | EDIFACT-Parser | `mako-codec` |
-| 10.2 | EDIFACT → interne Typen | `mako-codec` |
-| 10.3 | Interne Typen → EDIFACT | `mako-codec` |
-| 10.4 | JSON-Serialisierung | `mako-codec` |
-| 10.5 | Marktsimulation | `mako-sim` |
+| 11.1 | EDIFACT-Parser | `mako-codec` |
+| 11.2 | EDIFACT → interne Typen (versionsbewusst: erkennt FV aus Nachricht) | `mako-codec` |
+| 11.3 | Interne Typen → EDIFACT (serialisiert in geforderte FV) | `mako-codec` |
+| 11.4 | JSON-Serialisierung (für REST-API-Webdienste ab FV2504) | `mako-codec` |
+| 11.5 | Marktsimulation: Rollen-Agenten, Version-aware Event-Bus | `mako-sim` |
 
 ---
 
@@ -379,3 +430,6 @@ Manuelle Verifikationsschritte nach Implementation:
 - **GG-10:** Ein GPKE-LFW Happy-Path-Szenario läuft komplett durch (Idle → Zugeordnet) inkl. Quittungen
 - **GG-11:** Gas-Crates verwenden `mako-gasumrechnung` für alle Mengenkonvertierungen
 - **GG-12:** Nominierung/Renominierung ist als Reducer in `mako-kov` implementiert mit eigenen Tests
+- **GG-13:** Jede implementierte MaKo-Version hat ihren eigenen Testsatz — v2025-Tests und v2020-Tests laufen unabhängig
+- **GG-14:** Version-Dispatcher routet korrekt: gleiche Nachricht, verschiedene Versionen → verschiedene Reducer → verschiedene Ergebnisse
+- **GG-15:** Historische Szenarien (z.B. LFW pre-2025 vs. post-LFW24) sind als Integrationstests abgebildet
