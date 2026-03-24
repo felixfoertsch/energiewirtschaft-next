@@ -7,6 +7,8 @@ members = [
 	"mako-gpke",
 	"mako-wim",
 	"mako-ubp",
+	"mako-mabis",
+	"mako-abrechnung",
 	"mako-testdata",
 ]
 

@@ -216,3 +216,94 @@ pub struct PreisPosition {
 	pub preis_ct: f64,
 	pub einheit: String,
 }
+
+// === MaBiS Message Types ===
+
+/// UTILMD Bilanzkreiszuordnung: LF -> NB (MaBiS 4.1.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UtilmdBilanzkreiszuordnung {
+	pub malo_id: MaLoId,
+	pub bilanzkreis: String, // BK-Nummer
+	pub gueltig_ab: NaiveDate,
+}
+
+/// MSCONS Aggregierte Zeitreihen: NB -> BKV (MaBiS 4.2.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MsconsAggregierteZeitreihen {
+	pub bilanzkreis: String,
+	pub zeitreihen: Vec<Messwert>,
+	pub typ: ZeitreihenTyp,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ZeitreihenTyp {
+	SlpSynthese,
+	RlmLastgang,
+	Summenzeitreihe,
+	Fahrplan,
+}
+
+/// MSCONS Mehr-/Mindermengenliste: NB -> LF (MaBiS 4.3.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MsconsMehrMindermengen {
+	pub malo_id: MaLoId,
+	pub mehrmenge_kwh: f64,
+	pub mindermenge_kwh: f64,
+	pub abrechnungszeitraum_von: NaiveDate,
+	pub abrechnungszeitraum_bis: NaiveDate,
+}
+
+/// UTILMD Clearingliste: NB -> LF (MaBiS 4.4.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct UtilmdClearingliste {
+	pub eintraege: Vec<ClearingEintrag>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClearingEintrag {
+	pub malo_id: MaLoId,
+	pub feld: String,
+	pub nb_wert: String,
+	pub lf_wert: Option<String>,
+}
+
+// === Abrechnung (INVOIC/REMADV) ===
+
+/// INVOIC Rechnung (generic, covers 6.1-6.9)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InvoicRechnung {
+	pub rechnungsnummer: String,
+	pub rechnungsdatum: NaiveDate,
+	pub absender: MarktpartnerId,
+	pub empfaenger: MarktpartnerId,
+	pub positionen: Vec<RechnungsPosition>,
+	pub gesamtbetrag_ct: i64, // in Cent to avoid floating point
+	pub rechnungstyp: RechnungsTyp,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RechnungsPosition {
+	pub bezeichnung: String,
+	pub menge: f64,
+	pub einheit: String,
+	pub einzelpreis_ct: i64,
+	pub betrag_ct: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RechnungsTyp {
+	Netznutzung,
+	Messstellenbetrieb,
+	MehrMindermengen,
+	Ausgleichsenergie,
+}
+
+/// REMADV Zahlungsavis (covers 6.2-6.10)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RemadvZahlungsavis {
+	pub referenz_rechnungsnummer: String,
+	pub zahlungsdatum: NaiveDate,
+	pub betrag_ct: i64,
+	pub akzeptiert: bool,
+	pub ablehnungsgrund: Option<String>,
+}

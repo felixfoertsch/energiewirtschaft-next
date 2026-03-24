@@ -41,4 +41,12 @@ pub enum NachrichtenPayload {
 	OrdersBestellung(OrdersBestellung),
 	OrdrspBestellantwort(OrdrspBestellantwort),
 	PricatPreisblatt(PricatPreisblatt),
+	// MaBiS
+	UtilmdBilanzkreiszuordnung(UtilmdBilanzkreiszuordnung),
+	MsconsAggregierteZeitreihen(MsconsAggregierteZeitreihen),
+	MsconsMehrMindermengen(MsconsMehrMindermengen),
+	UtilmdClearingliste(UtilmdClearingliste),
+	// Abrechnung
+	InvoicRechnung(InvoicRechnung),
+	RemadvZahlungsavis(RemadvZahlungsavis),
 }
