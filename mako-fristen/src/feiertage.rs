@@ -19,24 +19,24 @@ impl Feiertagskalender {
 
 	/// German federal holidays for a given year.
 	pub fn bundesweit(jahr: i32) -> Self {
-		let mut tage = Vec::new();
-
-		// Fixed holidays
-		tage.push(NaiveDate::from_ymd_opt(jahr, 1, 1).unwrap()); // Neujahr
-		tage.push(NaiveDate::from_ymd_opt(jahr, 5, 1).unwrap()); // Tag der Arbeit
-		tage.push(NaiveDate::from_ymd_opt(jahr, 10, 3).unwrap()); // Tag der Deutschen Einheit
-		tage.push(NaiveDate::from_ymd_opt(jahr, 10, 31).unwrap()); // Reformationstag
-		tage.push(NaiveDate::from_ymd_opt(jahr, 12, 25).unwrap()); // 1. Weihnachtstag
-		tage.push(NaiveDate::from_ymd_opt(jahr, 12, 26).unwrap()); // 2. Weihnachtstag
-
-		// Easter-based holidays
 		let ostern = ostersonntag(jahr);
-		tage.push(ostern - Days::new(2)); // Karfreitag
-		tage.push(ostern); // Ostersonntag
-		tage.push(ostern + Days::new(1)); // Ostermontag
-		tage.push(ostern + Days::new(39)); // Christi Himmelfahrt
-		tage.push(ostern + Days::new(49)); // Pfingstsonntag
-		tage.push(ostern + Days::new(50)); // Pfingstmontag
+
+		let tage = vec![
+			// Fixed holidays
+			NaiveDate::from_ymd_opt(jahr, 1, 1).unwrap(),   // Neujahr
+			NaiveDate::from_ymd_opt(jahr, 5, 1).unwrap(),   // Tag der Arbeit
+			NaiveDate::from_ymd_opt(jahr, 10, 3).unwrap(),  // Tag der Deutschen Einheit
+			NaiveDate::from_ymd_opt(jahr, 10, 31).unwrap(), // Reformationstag
+			NaiveDate::from_ymd_opt(jahr, 12, 25).unwrap(), // 1. Weihnachtstag
+			NaiveDate::from_ymd_opt(jahr, 12, 26).unwrap(), // 2. Weihnachtstag
+			// Easter-based holidays
+			ostern - Days::new(2),  // Karfreitag
+			ostern,                 // Ostersonntag
+			ostern + Days::new(1),  // Ostermontag
+			ostern + Days::new(39), // Christi Himmelfahrt
+			ostern + Days::new(49), // Pfingstsonntag
+			ostern + Days::new(50), // Pfingstmontag
+		];
 
 		Self::new(tage)
 	}
