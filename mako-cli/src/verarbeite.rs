@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use chrono::Local;
 use mako_types::ids::MarktpartnerId;
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 
@@ -122,6 +123,81 @@ fn dispatch_gpke_lfw(
 	Ok((new_state, output.nachrichten))
 }
 
+/// Update or create a .status.json file alongside the given datei path.
+fn update_status(datei: &str, field: &str, value: serde_json::Value) -> Result<(), Box<dyn std::error::Error>> {
+	let status_path = format!("{}.status.json", datei);
+	let mut status: serde_json::Map<String, serde_json::Value> =
+		if std::path::Path::new(&status_path).exists() {
+			serde_json::from_str(&std::fs::read_to_string(&status_path)?)?
+		} else {
+			serde_json::Map::new()
+		};
+	status.insert(field.to_string(), value);
+	std::fs::write(&status_path, serde_json::to_string_pretty(&serde_json::Value::Object(status))?)?;
+	Ok(())
+}
+
+/// Append a log entry to the markt log directory.
+fn log_verarbeite_entry(
+	markt: &Path,
+	datei: &str,
+	aktion: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+	let log_dir = markt.join("log");
+	std::fs::create_dir_all(&log_dir)?;
+	let today = Local::now().format("%Y-%m-%d").to_string();
+	let log_path = log_dir.join(format!("{today}.jsonl"));
+	let entry = serde_json::json!({
+		"zeitpunkt": Local::now().to_rfc3339(),
+		"datei": datei,
+		"aktion": aktion,
+	});
+	use std::io::Write;
+	let mut file = std::fs::OpenOptions::new()
+		.create(true)
+		.append(true)
+		.open(log_path)?;
+	writeln!(file, "{}", serde_json::to_string(&entry)?)?;
+	Ok(())
+}
+
+/// Process all unverarbeitet .edi and .json files in a role's inbox.
+pub fn run_alle(markt: &str, rolle: &str) -> Result<(), Box<dyn std::error::Error>> {
+	let inbox = std::path::Path::new(markt).join(rolle).join("inbox");
+	let mut processed = 0;
+	for entry in std::fs::read_dir(&inbox)? {
+		let entry = entry?;
+		let path = entry.path();
+		let path_str = path.to_string_lossy().to_string();
+
+		// Skip .status.json files
+		if path_str.contains(".status.json") {
+			continue;
+		}
+
+		// Only process .edi and .json files
+		if !path.extension().map(|e| e == "edi" || e == "json").unwrap_or(false) {
+			continue;
+		}
+
+		// Skip if already has "verarbeitet" status
+		let status_path = inbox.join(format!("{}.status.json", path.file_name().unwrap().to_string_lossy()));
+		if status_path.exists() {
+			let content = std::fs::read_to_string(&status_path)?;
+			if content.contains("verarbeitet") {
+				continue;
+			}
+		}
+
+		match run(path.to_str().unwrap(), markt) {
+			Ok(()) => processed += 1,
+			Err(e) => eprintln!("Fehler bei {}: {e}", path.display()),
+		}
+	}
+	println!("{processed} Nachrichten verarbeitet in {rolle}/inbox/");
+	Ok(())
+}
+
 pub fn run(datei: &str, markt: &str) -> Result<(), Box<dyn std::error::Error>> {
 	// 1. Read file
 	let content = std::fs::read_to_string(datei)
@@ -143,9 +219,11 @@ pub fn run(datei: &str, markt: &str) -> Result<(), Box<dyn std::error::Error>> {
 	// 4. CONTRL check
 	let contrl = mako_quittung::contrl::contrl_pruefen(&nachricht);
 	write_quittung_file(&absender_dir, "contrl", &contrl)?;
+	update_status(datei, "contrl", serde_json::to_value(&contrl)?)?;
 
 	if matches!(contrl, mako_quittung::types::QuittungsErgebnis::Negativ(_)) {
 		println!("CONTRL negativ — Verarbeitung gestoppt");
+		log_verarbeite_entry(markt_path, datei, "contrl_negativ")?;
 		return Ok(());
 	}
 
@@ -153,9 +231,11 @@ pub fn run(datei: &str, markt: &str) -> Result<(), Box<dyn std::error::Error>> {
 	let stichtag = chrono::Local::now().date_naive();
 	let aperak = mako_quittung::aperak::aperak_pruefen(&nachricht, stichtag);
 	write_quittung_file(&absender_dir, "aperak", &aperak)?;
+	update_status(datei, "aperak", serde_json::to_value(&aperak)?)?;
 
 	if matches!(aperak, mako_quittung::types::QuittungsErgebnis::Negativ(_)) {
 		println!("APERAK negativ — Verarbeitung gestoppt");
+		log_verarbeite_entry(markt_path, datei, "aperak_negativ")?;
 		return Ok(());
 	}
 
@@ -179,7 +259,17 @@ pub fn run(datei: &str, markt: &str) -> Result<(), Box<dyn std::error::Error>> {
 		let outbox = empfaenger_dir.join("outbox");
 		std::fs::create_dir_all(&outbox)?;
 		std::fs::write(outbox.join(&filename), &json)?;
+		// Log each outgoing message
+		let empfaenger_name = empfaenger_dir
+			.file_name()
+			.map(|n| n.to_string_lossy().to_string())
+			.unwrap_or_default();
+		log_verarbeite_entry(markt_path, &filename, &format!("gesendet_von_{empfaenger_name}"))?;
 	}
+
+	// 10. Update .status.json with verarbeitet timestamp
+	update_status(datei, "verarbeitet", serde_json::Value::String(Local::now().to_rfc3339()))?;
+	log_verarbeite_entry(markt_path, datei, "verarbeitet")?;
 
 	println!(
 		"Verarbeitet: {} — {} ausgehende Nachrichten",
