@@ -1,4 +1,5 @@
 pub mod fixtures;
+pub mod generator;
 pub mod ids;
 pub mod mscons;
 pub mod utilmd;
