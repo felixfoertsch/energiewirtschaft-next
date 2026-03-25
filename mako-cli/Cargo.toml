@@ -4,7 +4,7 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
-chrono = { workspace = true }
+chrono = { workspace = true, features = ["clock"] }
 clap = { version = "4", features = ["derive"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -24,3 +24,7 @@ mako-geli = { path = "../mako-geli" }
 mako-gabi = { path = "../mako-gabi" }
 mako-kov = { path = "../mako-kov" }
 mako-gasumrechnung = { path = "../mako-gasumrechnung" }
+
+[dev-dependencies]
+mako-testdata = { path = "../mako-testdata" }
+tempfile = "3"

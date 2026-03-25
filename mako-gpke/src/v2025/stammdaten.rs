@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use mako_types::fehler::ProzessFehler;
 use mako_types::gpke_nachrichten::{
 	AblehnungsGrund, Stammdatenfeld, UtilmdAblehnung, UtilmdStammdatenaenderung,
@@ -7,7 +9,7 @@ use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 use mako_types::reducer::ReducerOutput;
 use mako_types::rolle::MarktRolle;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum StammdatenState {
 	Idle,
 	AenderungGesendet {
@@ -24,7 +26,7 @@ pub enum StammdatenState {
 	},
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum StammdatenEvent {
 	AenderungEingegangen(UtilmdStammdatenaenderung),
 	AenderungBestaetigt,

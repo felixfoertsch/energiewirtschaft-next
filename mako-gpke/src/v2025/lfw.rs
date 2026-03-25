@@ -1,4 +1,5 @@
 use chrono::NaiveDate;
+use serde::{Deserialize, Serialize};
 
 use mako_types::fehler::ProzessFehler;
 use mako_types::gpke_nachrichten::{
@@ -9,7 +10,7 @@ use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 use mako_types::reducer::ReducerOutput;
 use mako_types::rolle::MarktRolle;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LfwState {
 	/// No active process
 	Idle,
@@ -50,7 +51,7 @@ pub enum LfwState {
 	},
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum LfwEvent {
 	AnmeldungEmpfangen(mako_types::gpke_nachrichten::UtilmdAnmeldung),
 	AnmeldungBestaetigt { lfa: MarktpartnerId },

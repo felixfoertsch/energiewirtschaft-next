@@ -1,8 +1,10 @@
+use serde::{Deserialize, Serialize};
+
 use mako_types::fehler::ProzessFehler;
 use mako_types::gpke_nachrichten::{UtilmdZuordnungsliste, ZuordnungsEintrag};
 use mako_types::reducer::ReducerOutput;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ZuordnungState {
 	Idle,
 	ListeVersendet {
@@ -11,7 +13,7 @@ pub enum ZuordnungState {
 	Bestaetigt,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ZuordnungEvent {
 	ListeEmpfangen(UtilmdZuordnungsliste),
 	Bestaetigt,

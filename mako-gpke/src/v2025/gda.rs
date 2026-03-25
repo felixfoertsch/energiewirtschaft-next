@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use mako_types::fehler::ProzessFehler;
 use mako_types::gpke_nachrichten::{
 	AblehnungsGrund, Stammdatenfeld, UtilmdAblehnung, UtilmdGeschaeftsdatenanfrage,
@@ -8,7 +10,7 @@ use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 use mako_types::reducer::ReducerOutput;
 use mako_types::rolle::MarktRolle;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GdaState {
 	Idle,
 	AnfrageGesendet {
@@ -25,7 +27,7 @@ pub enum GdaState {
 	},
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum GdaEvent {
 	AnfrageEingegangen(UtilmdGeschaeftsdatenanfrage),
 	AntwortEmpfangen(UtilmdGeschaeftsdatenantwort),
