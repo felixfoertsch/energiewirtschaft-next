@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 import { StatusBadge } from "@/components/StatusBadge.tsx";
-import { rollenLabel } from "@/components/RollenTabs.tsx";
+import { rollenLabel } from "@/lib/rollen.ts";
 import { api } from "@/lib/api.ts";
 import type { NachrichtMeta } from "@/lib/types.ts";
 

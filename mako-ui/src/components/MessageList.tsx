@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.t
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 import { StatusBadge } from "@/components/StatusBadge.tsx";
-import { rollenLabel } from "@/components/RollenTabs.tsx";
+import { rollenLabel } from "@/lib/rollen.ts";
 import type { NachrichtMeta } from "@/lib/types.ts";
 
 interface MessageListProps {

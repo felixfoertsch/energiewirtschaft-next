@@ -1,19 +1,7 @@
 import { Badge } from "@/components/ui/badge.tsx";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
+import { rollenLabel } from "@/lib/rollen.ts";
 import type { Rolle } from "@/lib/types.ts";
-
-const ROLLEN_LABELS: Record<string, string> = {
-	lieferant_neu: "Lieferant Neu",
-	netzbetreiber: "Netzbetreiber",
-	lieferant_alt: "Lieferant Alt",
-	messstellenbetreiber: "MSB",
-	bilanzkreisverantwortlicher: "BKV",
-	marktgebietsverantwortlicher: "MGV",
-};
-
-export function rollenLabel(name: string): string {
-	return ROLLEN_LABELS[name] ?? name;
-}
 
 interface RollenTabsProps {
 	rollen: Rolle[];
