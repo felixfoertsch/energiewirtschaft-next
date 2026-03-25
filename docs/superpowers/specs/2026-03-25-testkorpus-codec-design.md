@@ -14,7 +14,13 @@
 - Hinzu kommen **3 Querschnittstypen** (IFTSTA, PARTIN, UTILTS) → 46 Payload-Varianten
 - CONTRL und APERAK sind **Quittungstypen** (mako-quittung), keine Payload-Varianten — brauchen Fixtures aber keine Generatoren
 - COMDIS, INSRPT, ORDCHG: **bewusst zurückgestellt** (Nischentypen, werden ergänzt wenn die Kerntypen stehen)
-- Ergibt: **46 Payload-Fixtures + 4 Quittungs-Fixtures + 8 XML-Fixtures = 58 Fixtures gesamt**
+- Ergibt: **46 Payload-Fixtures + 4 Quittungs-Fixtures + 9 XML-Fixtures = 59 Fixtures gesamt**
+
+**Formatversionen & Zukunftssicherheit:**
+- Primäre Zielversion: **FV2504** (aktuell gültig, `docs/mako_aktuell_kostenfrei_25_03_2026/`)
+- Zukünftig gültig: **FV2510** (`docs/mako_zukuenftig_kostenfrei_25_03_2026/`) — enthält einen **neuen XML-Typ "Kaskade"** (RD 2.0 Kaskadierung) sowie Versions-Bumps bei UTILMD Gas (G1.0a→G1.1), ORDRSP, PARTIN, REMADV, EBD (4.1→4.2), PID (3.2→3.3)
+- Archivierte Versionen: `docs/2026_03_25_mako_*_archiviert/` (2.267 Dokumente, MaKo-Historie seit 2008) — relevant für historische Versionen (Phase 10), nicht für jetzt
+- Fixtures werden zunächst für FV2504 gebaut; FV2510-Änderungen werden als separate Module ergänzt wenn die neue FV in Kraft tritt
 
 ---
 
@@ -26,7 +32,7 @@
 - EDIFACT-Parser: Roh-Segmente → typisierte Rust-Structs (pro Nachrichtentyp)
 - EDIFACT-Serializer: typisierte Rust-Structs → EDIFACT `String`
 - XML-Parser/Serializer: XML → RD 2.0 Structs → XML (für Redispatch)
-- Referenz-Fixtures: echte EDIFACT-Nachrichten als `&str`-Konstanten (58 Fixtures: 46 Payload + 4 Quittung + 8 XML)
+- Referenz-Fixtures: echte EDIFACT-Nachrichten als `&str`-Konstanten (59 Fixtures: 46 Payload + 4 Quittung + 9 XML)
 - Generator: parametrisierte Erzeugung gültiger EDIFACT-Nachrichten (46 Payload-Generatoren)
 - Fehler-Injektor: gezielte Korrumpierung gültiger Nachrichten (Syntax-, Anwendungs-, Fachfehler)
 - Kommunikationsketten: vollständige Prozessdurchläufe als Sequenzen (15 Ketten)
@@ -88,9 +94,20 @@ Vollständige MIG + AHB Paare für alle EDIFACT-Typen:
 | COMDIS | 1.0f | 1.0g |
 | INSRPT | 1.1a | 1.1g |
 
-XML RD 2.0 (jeweils FB + AWT + XSD): AcknowledgementDocument, ActivationDocument, Kostenblatt, NetworkConstraintDocument, PlannedResourceScheduleDocument, StatusRequest_MarketDocument, Stammdaten, Unavailability_MarketDocument.
+XML RD 2.0 (jeweils FB + AWT + XSD): AcknowledgementDocument, ActivationDocument, Kostenblatt, NetworkConstraintDocument, PlannedResourceScheduleDocument, StatusRequest_MarketDocument, Stammdaten, Unavailability_MarketDocument. **Neu in FV2510:** Kaskade (Kaskadierung von Redispatch-Maßnahmen, FB 1.0 + AWT 1.0 + XSD 1.0).
 
 Plus: EBD und Codelisten 4.1, Allgemeine Festlegungen 6.1b, PID 3.2, alle Codelisten (Artikelnummern, OBIS, Konfigurationen, Lokationsbündelstrukturen, Zeitreihentypen).
+
+### 2.4  Lokale Dokumentenstruktur
+
+| Ordner | Inhalt | Dokumente |
+|--------|--------|-----------|
+| `docs/mako_aktuell_kostenfrei_25_03_2026/` | Aktuell gültige FV2504 | 206 Dateien |
+| `docs/mako_zukuenftig_kostenfrei_25_03_2026/` | Zukünftig gültige FV2510 | 204 Dateien |
+| `docs/2026_03_25_mako_api_webdienste_aktuell_gueltig/` | API-Webdienste (aktuell) | 2 Dateien |
+| `docs/2026_03_25_mako_*_archiviert/` (13 Ordner) | Archiv seit 2008 | 2.267 Dateien |
+
+**Für die Implementation:** Fixtures werden gegen FV2504 gebaut (`mako_aktuell_kostenfrei_25_03_2026/`). Die MIG-Dokumente (PDF) enthalten die normative Segmentstruktur, die AHB-Dokumente die Feldanforderungen pro PID. FV2510-Dokumente dienen als Vorschau für den nächsten Versions-Sprung — insbesondere der neue XML-Typ **Kaskade** und die UTILMD Gas G1.1.
 
 ---
 
@@ -164,7 +181,8 @@ mako-testdata/                 # Fixtures, Generator, Fehler-Injektor
 	│       ├── acknowledgement.rs
 	│       ├── engpass.rs     # NetworkConstraintDocument
 	│       ├── nichtverfuegbarkeit.rs # Unavailability_MarketDocument
-	│       └── statusrequest.rs
+	│       ├── statusrequest.rs
+	│       └── kaskade.rs         # Kaskade (neu in FV2510)
 	├── generator/
 	│   ├── mod.rs
 	│   ├── segmente.rs        # Segment-Bausteine (una, unb, unh, bgm, dtm, nad, ...)
@@ -322,15 +340,15 @@ pub fn anmeldung_lfw_erwartet() -> Nachricht { /* ... */ }
 | MaBiS | Bilanzkreiszuordnung, AggregierteZeitreihen, MehrMindermengen, Clearingliste | 4 | UTILMD/MSCONS MIG |
 | Abrechnung | Rechnung, Zahlungsavis | 2 | INVOIC/REMADV MIG |
 | MPES | AnmeldungErzeugung, EinspeiseMesswerte | 2 | UTILMD/MSCONS MIG |
-| RD 2.0 (XML) | Stammdaten, Fahrplan, Aktivierung, Bestaetigung, Engpass, Nichtverfuegbarkeit, Kostenblatt, StatusRequest | 8 | XSD + AWT |
+| RD 2.0 (XML) | Stammdaten, Fahrplan, Aktivierung, Bestaetigung, Engpass, Nichtverfuegbarkeit, Kostenblatt, StatusRequest, Kaskade | 9 | XSD + AWT |
 | §14a | SteuerbareVerbrauchseinrichtung, Steuersignal | 2 | UTILMD MIG + CLS-Spec |
 | Gas | Nominierung, NominierungBestaetigung, Renominierung, Brennwert, Ausspeisepunkt | 5 | UTILMD/MSCONS MIG Gas |
 | Querschnitt | IFTSTA-Statusmeldung, PARTIN-Marktpartner, UTILTS-Berechnungsformel | 3 | IFTSTA/PARTIN/UTILTS MIG |
 | Quittung | CONTRL positiv, CONTRL negativ, APERAK positiv, APERAK negativ | 4 | CONTRL/APERAK MIG + Web-Beispiele |
 | **Payload-Fixtures** | | **46** | (43 bestehende + 3 neue Querschnittstypen) |
 | **Quittungs-Fixtures** | | **4** | (nicht in NachrichtenPayload) |
-| **XML-Fixtures** | | **8** | |
-| **Gesamt** | | **58** | |
+| **XML-Fixtures** | | **9** | (inkl. Kaskade aus FV2510) |
+| **Gesamt** | | **59** | |
 
 **Bewusst zurückgestellt:** COMDIS (Handelsunstimmigkeit), INSRPT (Prüfbericht), ORDCHG (Bestelländerung). Diese sind Nischentypen mit geringer Prozesspräsenz. MIG/AHB-Dokumente liegen vor; Fixtures werden ergänzt wenn die Kerntypen stehen.
 
@@ -546,7 +564,7 @@ Wenn alle 15 Ketten sauber durchlaufen — Parser, Quittung, Reducer, Serializer
 
 | # | Aufgabe | Crate |
 |---|---------|-------|
-| C.1 | XML-Fixtures: alle 8 RD 2.0 Dokumenttypen | mako-testdata |
+| C.1 | XML-Fixtures: alle 9 RD 2.0 Dokumenttypen (inkl. Kaskade) | mako-testdata |
 | C.2 | XML-Parser + Serializer (XSD-validiert) | mako-codec |
 | C.3 | XML-Roundtrip-Tests | mako-codec |
 
@@ -598,7 +616,7 @@ Wenn alle 15 Ketten sauber durchlaufen — Parser, Quittung, Reducer, Serializer
 Manuelle Verifikationsschritte nach Implementation:
 
 - **GG-1:** `cargo test --workspace` — alle Tests grün, keine Warnungen
-- **GG-2:** Jede der 58 Fixtures parst korrekt zum erwarteten Struct
+- **GG-2:** Jede der 59 Fixtures parst korrekt zum erwarteten Struct
 - **GG-3:** Jede Fixture besteht den Roundtrip-Test (parse → serialize → parse = identisch)
 - **GG-4:** Alle 46 Payload-Generatoren erzeugen Nachrichten die der Parser akzeptiert
 - **GG-5:** Generator-Nachrichten stimmen fachlich mit MIG/AHB überein (manuelle Prüfung Stichprobe)
