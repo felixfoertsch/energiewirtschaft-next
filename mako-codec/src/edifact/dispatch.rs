@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate};
 
 use mako_types::gpke_nachrichten::UtilmdAnmeldung;
 use mako_types::ids::{MaLoId, MarktpartnerId};
@@ -7,7 +7,8 @@ use mako_types::pruefidentifikator::PruefIdentifikator;
 use mako_types::rolle::MarktRolle;
 
 use super::parser::parse_interchange;
-use super::segment::Segment;
+use super::segment::{EdifactNachricht, Element, Interchange, Segment};
+use super::serializer::serialize_interchange;
 use crate::fehler::CodecFehler;
 
 /// Parse an EDIFACT string into a typed Nachricht.
@@ -194,5 +195,104 @@ fn find_qualified_segment<'a>(
 
 /// Serialize a typed Nachricht to an EDIFACT string.
 pub fn serialize_nachricht(nachricht: &Nachricht) -> String {
-	todo!("Task 3 implements the first variant")
+	match &nachricht.payload {
+		NachrichtenPayload::UtilmdAnmeldung(anmeldung) => {
+			serialize_utilmd_anmeldung(nachricht, anmeldung)
+		}
+		_ => unimplemented!("serialize_nachricht: payload type not yet supported"),
+	}
+}
+
+fn serialize_utilmd_anmeldung(nachricht: &Nachricht, anmeldung: &UtilmdAnmeldung) -> String {
+	let pid_code = nachricht
+		.pruef_id
+		.map(|p| p.code().to_string())
+		.unwrap_or_default();
+
+	let segmente = vec![
+		Segment {
+			tag: "BGM".to_string(),
+			elements: vec![
+				Element { components: vec!["E01".to_string()] },
+				Element { components: vec!["DOK00001".to_string()] },
+			],
+		},
+		Segment {
+			tag: "DTM".to_string(),
+			elements: vec![Element {
+				components: vec![
+					"137".to_string(),
+					"20260101000000".to_string(),
+					"303".to_string(),
+				],
+			}],
+		},
+		Segment {
+			tag: "NAD".to_string(),
+			elements: vec![
+				Element { components: vec!["MS".to_string()] },
+				Element {
+					components: vec![
+						nachricht.absender.as_str().to_string(),
+						String::new(),
+						"293".to_string(),
+					],
+				},
+			],
+		},
+		Segment {
+			tag: "NAD".to_string(),
+			elements: vec![
+				Element { components: vec!["MR".to_string()] },
+				Element {
+					components: vec![
+						nachricht.empfaenger.as_str().to_string(),
+						String::new(),
+						"293".to_string(),
+					],
+				},
+			],
+		},
+		Segment {
+			tag: "IDE".to_string(),
+			elements: vec![
+				Element { components: vec!["24".to_string()] },
+				Element { components: vec![anmeldung.malo_id.as_str().to_string()] },
+			],
+		},
+		Segment {
+			tag: "DTM".to_string(),
+			elements: vec![Element {
+				components: vec![
+					"92".to_string(),
+					format!(
+						"{:04}{:02}{:02}",
+						anmeldung.lieferbeginn.year(),
+						anmeldung.lieferbeginn.month(),
+						anmeldung.lieferbeginn.day()
+					),
+					"102".to_string(),
+				],
+			}],
+		},
+		Segment {
+			tag: "RFF".to_string(),
+			elements: vec![Element {
+				components: vec!["Z13".to_string(), pid_code],
+			}],
+		},
+	];
+
+	let interchange = Interchange {
+		sender: nachricht.absender.as_str().to_string(),
+		empfaenger: nachricht.empfaenger.as_str().to_string(),
+		datum: "20260101".to_string(),
+		nachrichten: vec![EdifactNachricht {
+			typ: "UTILMD".to_string(),
+			version: "D:11A:UN:S2.1".to_string(),
+			segmente,
+		}],
+	};
+
+	serialize_interchange(&interchange)
 }

@@ -53,7 +53,7 @@ pub fn anmeldung_lfw_erwartet() -> Nachricht {
 
 #[cfg(test)]
 mod tests {
-	use mako_codec::edifact::dispatch::parse_nachricht;
+	use mako_codec::edifact::dispatch::{parse_nachricht, serialize_nachricht};
 
 	use super::*;
 
@@ -63,5 +63,14 @@ mod tests {
 		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
 		let erwartet = anmeldung_lfw_erwartet();
 		assert_eq!(parsed, erwartet);
+	}
+
+	#[test]
+	fn roundtrip_anmeldung_lfw() {
+		let edi = anmeldung_lfw_edi();
+		let parsed = parse_nachricht(&edi).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
 	}
 }
