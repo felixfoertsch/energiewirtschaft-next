@@ -1,9 +1,12 @@
+pub mod iftsta;
 pub mod invoic;
 pub mod mscons;
 pub mod orders;
 pub mod ordrsp;
+pub mod partin;
 pub mod pricat;
 pub mod quotes;
 pub mod remadv;
 pub mod reqote;
 pub mod utilmd;
+pub mod utilts;

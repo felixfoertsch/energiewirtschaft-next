@@ -1,7 +1,6 @@
-use chrono::NaiveDate;
+use chrono::{NaiveDate, NaiveDateTime};
 
 use mako_types::gpke_nachrichten::*;
-use mako_types::ids::MaLoId;
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 use mako_types::pruefidentifikator::PruefIdentifikator;
 use mako_types::rolle::MarktRolle;
@@ -728,6 +727,208 @@ pub fn clearingliste_erwartet() -> Nachricht {
 	}
 }
 
+// ===========================================================================
+// MPES Variants
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// MPES 1. AnmeldungErzeugung (E01, QTY+220, CCI eeg) — BetreiberErzeugungsanlage -> NB
+// ---------------------------------------------------------------------------
+
+pub fn anmeldung_erzeugung_edi() -> String {
+	let sender = test_mp_id(5); // BetreiberErzeugungsanlage
+	let empfaenger = test_mp_id(1); // NB
+	let malo = test_malo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E01+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 LOC+172+{malo}'\
+		 CCI+Z30::true'\
+		 QTY+220:9.9:kW'\
+		 UNT+9+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo = malo.as_str(),
+	)
+}
+
+pub fn anmeldung_erzeugung_erwartet() -> Nachricht {
+	let bea = test_mp_id(5);
+	let nb = test_mp_id(1);
+
+	Nachricht {
+		absender: bea.clone(),
+		absender_rolle: MarktRolle::BetreiberErzeugungsanlage,
+		empfaenger: nb,
+		empfaenger_rolle: MarktRolle::Netzbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdAnmeldungErzeugung(UtilmdAnmeldungErzeugung {
+			malo_id: test_malo(0),
+			anlagenbetreiber: bea,
+			eeg_anlage: true,
+			installierte_leistung_kw: 9.9,
+		}),
+	}
+}
+
+// ===========================================================================
+// §14a Variants
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// §14a 3. SteuerbareVerbrauchseinrichtung (E01, CCI geraetetyp) — NB -> MSB
+// ---------------------------------------------------------------------------
+
+pub fn steuerbare_verbrauchseinrichtung_edi() -> String {
+	let sender = test_mp_id(1); // NB
+	let empfaenger = test_mp_id(3); // MSB
+	let malo = test_malo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E01+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 LOC+172+{malo}'\
+		 CCI+Z30::Wallbox'\
+		 QTY+220:11:kW'\
+		 UNT+9+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo = malo.as_str(),
+	)
+}
+
+pub fn steuerbare_verbrauchseinrichtung_erwartet() -> Nachricht {
+	let nb = test_mp_id(1);
+	let msb = test_mp_id(3);
+
+	Nachricht {
+		absender: nb,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger: msb,
+		empfaenger_rolle: MarktRolle::Messstellenbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdSteuerbareVerbrauchseinrichtung(
+			UtilmdSteuerbareVerbrauchseinrichtung {
+				malo_id: test_malo(0),
+				geraetetyp: SteuerbarerGeraetetyp::Wallbox,
+				max_leistung_kw: 11.0,
+			},
+		),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// §14a 4. ClsSteuersignal (E04, STS steuerung) — NB -> MSB
+// ---------------------------------------------------------------------------
+
+pub fn cls_steuersignal_edi() -> String {
+	let sender = test_mp_id(1); // NB
+	let empfaenger = test_mp_id(3); // MSB
+	let malo = test_malo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E04+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 LOC+172+{malo}'\
+		 STS+7++Z08'\
+		 DTM+163:20260701140000:203'\
+		 UNT+9+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo = malo.as_str(),
+	)
+}
+
+pub fn cls_steuersignal_erwartet() -> Nachricht {
+	let nb = test_mp_id(1);
+	let msb = test_mp_id(3);
+
+	Nachricht {
+		absender: nb,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger: msb,
+		empfaenger_rolle: MarktRolle::Messstellenbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::ClsSteuersignal(ClsSteuersignal {
+			malo_id: test_malo(0),
+			steuerung: Steuerungsart::Abschaltung,
+			zeitpunkt: NaiveDateTime::new(
+				NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
+				chrono::NaiveTime::from_hms_opt(14, 0, 0).unwrap(),
+			),
+		}),
+	}
+}
+
+// ===========================================================================
+// Gas Variants (UTILMD)
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Gas 9. Ausspeisepunkt (E01, two NAD+DP) — NB -> FNB
+// ---------------------------------------------------------------------------
+
+pub fn ausspeisepunkt_edi() -> String {
+	let sender = test_mp_id(1); // NB
+	let empfaenger = test_mp_id(6); // FNB
+	let malo = test_malo(0);
+	let nb_dp = test_mp_id(1);
+	let fnb_dp = test_mp_id(6);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E01+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 LOC+172+{malo}'\
+		 NAD+DP+{nb_dp}::293'\
+		 NAD+DP+{fnb_dp}::293'\
+		 UNT+9+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo = malo.as_str(),
+		nb_dp = nb_dp.as_str(),
+		fnb_dp = fnb_dp.as_str(),
+	)
+}
+
+pub fn ausspeisepunkt_erwartet() -> Nachricht {
+	let nb = test_mp_id(1);
+	let fnb = test_mp_id(6);
+
+	Nachricht {
+		absender: nb.clone(),
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger: fnb.clone(),
+		empfaenger_rolle: MarktRolle::Fernleitungsnetzbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdAusspeisepunkt(UtilmdAusspeisepunkt {
+			malo_id: test_malo(0),
+			nb,
+			fnb,
+		}),
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -990,6 +1191,74 @@ mod tests {
 	#[test]
 	fn roundtrip_clearingliste() {
 		let parsed = parse_nachricht(&clearingliste_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- MPES: AnmeldungErzeugung ---
+
+	#[test]
+	fn parse_anmeldung_erzeugung() {
+		let edi = anmeldung_erzeugung_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, anmeldung_erzeugung_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_anmeldung_erzeugung() {
+		let parsed = parse_nachricht(&anmeldung_erzeugung_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- §14a: SteuerbareVerbrauchseinrichtung ---
+
+	#[test]
+	fn parse_steuerbare_verbrauchseinrichtung() {
+		let edi = steuerbare_verbrauchseinrichtung_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, steuerbare_verbrauchseinrichtung_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_steuerbare_verbrauchseinrichtung() {
+		let parsed = parse_nachricht(&steuerbare_verbrauchseinrichtung_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- §14a: ClsSteuersignal ---
+
+	#[test]
+	fn parse_cls_steuersignal() {
+		let edi = cls_steuersignal_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, cls_steuersignal_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_cls_steuersignal() {
+		let parsed = parse_nachricht(&cls_steuersignal_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- Gas: Ausspeisepunkt ---
+
+	#[test]
+	fn parse_ausspeisepunkt() {
+		let edi = ausspeisepunkt_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, ausspeisepunkt_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_ausspeisepunkt() {
+		let parsed = parse_nachricht(&ausspeisepunkt_edi()).unwrap();
 		let serialized = serialize_nachricht(&parsed);
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);

@@ -4,6 +4,7 @@ use mako_types::gpke_nachrichten::*;
 use mako_types::ids::{MaLoId, MarktpartnerId, MeLoId};
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 use mako_types::pruefidentifikator::PruefIdentifikator;
+use mako_types::querschnitt::{IftstaStatusmeldung, PartinMarktpartner, UtiltsZaehlzeitdefinition};
 use mako_types::rolle::MarktRolle;
 
 use super::parser::parse_interchange;
@@ -39,6 +40,9 @@ pub fn parse_nachricht(input: &str) -> Result<Nachricht, CodecFehler> {
 		"PRICAT" => parse_pricat(segs),
 		"INVOIC" => parse_invoic(segs),
 		"REMADV" => parse_remadv(segs),
+		"IFTSTA" => parse_iftsta(segs),
+		"PARTIN" => parse_partin(segs),
+		"UTILTS" => parse_utilts(segs),
 		other => Err(CodecFehler::UnbekannterNachrichtentyp {
 			typ: other.to_string(),
 		}),
@@ -113,7 +117,42 @@ pub fn serialize_nachricht(nachricht: &Nachricht) -> String {
 		NachrichtenPayload::RemadvZahlungsavis(p) => {
 			serialize_remadv_zahlungsavis(nachricht, p)
 		}
-		_ => unimplemented!("serialize_nachricht: payload type not yet supported"),
+		// MPES
+		NachrichtenPayload::UtilmdAnmeldungErzeugung(p) => {
+			serialize_utilmd_anmeldung_erzeugung(nachricht, p)
+		}
+		NachrichtenPayload::MsconsEinspeiseMesswerte(p) => {
+			serialize_mscons_einspeise_messwerte(nachricht, p)
+		}
+		// §14a
+		NachrichtenPayload::UtilmdSteuerbareVerbrauchseinrichtung(p) => {
+			serialize_utilmd_steuerbare_verbrauchseinrichtung(nachricht, p)
+		}
+		NachrichtenPayload::ClsSteuersignal(p) => {
+			serialize_cls_steuersignal(nachricht, p)
+		}
+		// Gas
+		NachrichtenPayload::Nominierung(p) => serialize_nominierung(nachricht, p),
+		NachrichtenPayload::NominierungBestaetigung(p) => {
+			serialize_nominierung_bestaetigung(nachricht, p)
+		}
+		NachrichtenPayload::Renominierung(p) => serialize_renominierung(nachricht, p),
+		NachrichtenPayload::MsconsBrennwert(p) => serialize_mscons_brennwert(nachricht, p),
+		NachrichtenPayload::UtilmdAusspeisepunkt(p) => {
+			serialize_utilmd_ausspeisepunkt(nachricht, p)
+		}
+		// Querschnitt
+		NachrichtenPayload::IftstaStatusmeldung(p) => {
+			serialize_iftsta_statusmeldung(nachricht, p)
+		}
+		NachrichtenPayload::PartinMarktpartner(p) => {
+			serialize_partin_marktpartner(nachricht, p)
+		}
+		NachrichtenPayload::UtiltsZaehlzeitdefinition(p) => {
+			serialize_utilts_zaehlzeitdefinition(nachricht, p)
+		}
+		// Redispatch 2.0 (XML-based, not EDIFACT)
+		_ => unimplemented!("serialize_nachricht: payload type not yet supported (Redispatch 2.0 uses XML)"),
 	}
 }
 
@@ -207,15 +246,65 @@ fn parse_utilmd(
 				.is_some_and(|q| q == "CLEARING")
 	});
 
+	// Check for QTY+220 (Leistung) — MPES AnmeldungErzeugung
+	let has_qty_220 = segs.iter().any(|s| {
+		s.tag == "QTY"
+			&& s.elements
+				.first()
+				.and_then(|e| e.components.first())
+				.is_some_and(|q| q == "220")
+	});
+
+	// Check for multiple NAD+DP — Ausspeisepunkt
+	let nad_dp_count = segs
+		.iter()
+		.filter(|s| {
+			s.tag == "NAD"
+				&& s.elements
+					.first()
+					.and_then(|e| e.components.first())
+					.is_some_and(|q| q == "DP")
+		})
+		.count();
+
+	// Check for CCI+Z30 with geraetetyp values (SteuerbareVerbrauchseinrichtung)
+	let has_geraetetyp_cci = segs.iter().any(|s| {
+		s.tag == "CCI"
+			&& s.elements
+				.first()
+				.and_then(|e| e.components.first())
+				.is_some_and(|q| q == "Z30")
+			&& s.elements
+				.first()
+				.and_then(|e| e.components.get(2))
+				.is_some_and(|v| {
+					matches!(v.as_str(), "Waermepumpe" | "Wallbox" | "Speicher")
+						|| v.starts_with("Sonstiges:")
+				})
+	});
+
 	// Fallback: BGM qualifier + heuristics
 	match qualifier.as_str() {
 		"E01" => {
 			if has_bk {
 				parse_utilmd_bilanzkreiszuordnung(segs)
+			} else if has_geraetetyp_cci {
+				// §14a: SteuerbareVerbrauchseinrichtung (CCI with Waermepumpe/Wallbox/Speicher)
+				parse_utilmd_steuerbare_verbrauchseinrichtung(segs)
+			} else if nad_dp_count >= 2 {
+				// Gas: Ausspeisepunkt has two NAD+DP (nb + fnb)
+				parse_utilmd_ausspeisepunkt(segs)
+			} else if has_qty_220 {
+				// MPES: AnmeldungErzeugung has QTY+220 for installierte_leistung
+				parse_utilmd_anmeldung_erzeugung(segs)
 			} else {
 				// E01 without PID = LieferendeBestaetigung
 				parse_utilmd_lieferende_bestaetigung(unb_sender, unb_empfaenger, segs)
 			}
+		}
+		"E04" => {
+			// §14a: ClsSteuersignal
+			parse_cls_steuersignal_msg(segs)
 		}
 		"E03" => {
 			if has_cci_z30 {
@@ -714,15 +803,46 @@ fn parse_mscons(
 						.and_then(|e| e.components.first())
 						.is_some_and(|q| q == "47")
 			});
+			// Check for MOA+BRENNWERT (Gas Brennwertmitteilung)
+			let has_brennwert = find_qualified_segment(segs, "MOA", "BRENNWERT").is_ok();
+			// Check for RFF+ACE (renomination reference)
+			let has_rff_ace = find_qualified_segment(segs, "RFF", "ACE").is_ok();
+			// Check STS code: NominierungBestaetigung uses Z06/Z08/TEIL, AggregierteZeitreihen uses SUM/SLP/RLM/FPL
+			let sts_code = find_qualified_segment(segs, "STS", "7")
+				.ok()
+				.and_then(|sts| sts.elements.get(2))
+				.and_then(|e| e.components.first())
+				.cloned()
+				.unwrap_or_default();
+			let is_nom_status = matches!(sts_code.as_str(), "Z06" | "Z08")
+				|| sts_code.starts_with("TEIL:");
 
-			if has_bk {
+			if has_brennwert {
+				parse_mscons_brennwert(segs, absender, empfaenger)
+			} else if has_bk && has_rff_ace {
+				// Renominierung: has bilanzkreis + RFF+ACE (re-nomination reference)
+				parse_renominierung_msg(segs, absender, empfaenger)
+			} else if has_bk && is_nom_status {
+				// NominierungBestaetigung: has bilanzkreis + STS with nomination status code
+				parse_nominierung_bestaetigung_msg(segs, absender, empfaenger)
+			} else if has_bk && !sts_code.is_empty() {
+				// AggregierteZeitreihen: has bilanzkreis + STS with time series type code
 				parse_mscons_aggregierte_zeitreihen(segs, absender, empfaenger)
+			} else if has_bk {
+				// BK without STS or other indicators = Nominierung
+				parse_nominierung_msg(segs, absender, empfaenger)
 			} else if qty_46_count > 0 && has_qty_47 {
 				parse_mscons_mehr_mindermengen(segs, absender, empfaenger)
 			} else {
-				Err(CodecFehler::SegmentFehlt {
-					erwartet: "RFF+Z13".to_string(),
-				})
+				// MPES EinspeiseMesswerte: MSCONS without PID but with LOC
+				let has_loc = find_qualified_segment(segs, "LOC", "172").is_ok();
+				if has_loc {
+					parse_mscons_einspeise_messwerte(segs, absender, empfaenger)
+				} else {
+					Err(CodecFehler::SegmentFehlt {
+						erwartet: "RFF+Z13".to_string(),
+					})
+				}
 			}
 		}
 	}
@@ -2656,6 +2776,1047 @@ fn wrap_mscons(nachricht: &Nachricht, segmente: Vec<Segment>) -> String {
 		}],
 	};
 	serialize_interchange(&interchange)
+}
+
+// ---------------------------------------------------------------------------
+// MPES parsers + serializers
+// ---------------------------------------------------------------------------
+
+fn parse_utilmd_anmeldung_erzeugung(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+	let malo_id = extract_malo_from_loc_or_nad_dp(segs)?;
+
+	// CCI+Z30 for eeg_anlage
+	let eeg_anlage = segs.iter().any(|s| {
+		s.tag == "CCI"
+			&& s.elements
+				.first()
+				.and_then(|e| e.components.first())
+				.is_some_and(|q| q == "Z30")
+			&& s.elements
+				.first()
+				.and_then(|e| e.components.get(2))
+				.is_some_and(|v| v == "true")
+	});
+
+	// QTY+220 for installierte_leistung_kw
+	let qty = find_qualified_segment(segs, "QTY", "220")?;
+	let leistung_str = qty
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "QTY+220".to_string(),
+			feld: "installierte_leistung".to_string(),
+		})?;
+	let installierte_leistung_kw =
+		leistung_str
+			.parse::<f64>()
+			.map_err(|_| CodecFehler::UngueltigerWert {
+				segment: "QTY+220".to_string(),
+				feld: "installierte_leistung".to_string(),
+				wert: leistung_str.clone(),
+			})?;
+
+	Ok(Nachricht {
+		absender: absender.clone(),
+		absender_rolle: MarktRolle::BetreiberErzeugungsanlage,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Netzbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdAnmeldungErzeugung(UtilmdAnmeldungErzeugung {
+			malo_id,
+			anlagenbetreiber: absender,
+			eeg_anlage,
+			installierte_leistung_kw,
+		}),
+	})
+}
+
+fn serialize_utilmd_anmeldung_erzeugung(
+	nachricht: &Nachricht,
+	p: &UtilmdAnmeldungErzeugung,
+) -> String {
+	let eeg_str = if p.eeg_anlage { "true" } else { "false" };
+	let segmente = vec![
+		bgm_segment("E01"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		loc_segment(p.malo_id.as_str()),
+		Segment {
+			tag: "CCI".to_string(),
+			elements: vec![Element {
+				components: vec!["Z30".to_string(), String::new(), eeg_str.to_string()],
+			}],
+		},
+		qty_segment(p.installierte_leistung_kw, "kW"),
+	];
+	wrap_utilmd(nachricht, segmente)
+}
+
+fn parse_mscons_einspeise_messwerte(
+	segs: &[Segment],
+	absender: MarktpartnerId,
+	empfaenger: MarktpartnerId,
+) -> Result<Nachricht, CodecFehler> {
+	let malo_id = extract_malo_from_loc_or_nad_dp(segs)?;
+
+	// Collect QTY+DTM pairs
+	let mut werte = Vec::new();
+	let mut i = 0;
+	while i < segs.len() {
+		if segs[i].tag == "QTY"
+			&& segs[i]
+				.elements
+				.first()
+				.and_then(|e| e.components.first())
+				.is_some_and(|q| q == "220")
+		{
+			let wert_str = segs[i]
+				.elements
+				.first()
+				.and_then(|e| e.components.get(1))
+				.ok_or(CodecFehler::FeldFehlt {
+					segment: "QTY+220".to_string(),
+					feld: "wert".to_string(),
+				})?;
+			let wert = wert_str
+				.parse::<f64>()
+				.map_err(|_| CodecFehler::UngueltigerWert {
+					segment: "QTY+220".to_string(),
+					feld: "wert".to_string(),
+					wert: wert_str.clone(),
+				})?;
+			let einheit = extract_einheit_from_qty(&segs[i]);
+
+			let zeitpunkt = if i + 1 < segs.len()
+				&& segs[i + 1].tag == "DTM"
+				&& segs[i + 1]
+					.elements
+					.first()
+					.and_then(|e| e.components.first())
+					.is_some_and(|q| q == "163")
+			{
+				let ts_str = segs[i + 1]
+					.elements
+					.first()
+					.and_then(|e| e.components.get(1))
+					.ok_or(CodecFehler::FeldFehlt {
+						segment: "DTM+163".to_string(),
+						feld: "zeitpunkt".to_string(),
+					})?;
+				parse_datetime(ts_str)?
+			} else {
+				return Err(CodecFehler::SegmentFehlt {
+					erwartet: "DTM+163 after QTY".to_string(),
+				});
+			};
+
+			werte.push(Messwert {
+				zeitpunkt,
+				wert,
+				einheit,
+				status: MesswertStatus::Gemessen,
+			});
+			i += 2;
+			continue;
+		}
+		i += 1;
+	}
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Messstellenbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Netzbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::MsconsEinspeiseMesswerte(MsconsEinspeiseMesswerte {
+			malo_id,
+			werte,
+		}),
+	})
+}
+
+fn serialize_mscons_einspeise_messwerte(
+	nachricht: &Nachricht,
+	p: &MsconsEinspeiseMesswerte,
+) -> String {
+	let mut segmente = vec![
+		bgm_7_segment(),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		loc_segment(p.malo_id.as_str()),
+	];
+
+	for mw in &p.werte {
+		segmente.push(qty_segment(mw.wert, &mw.einheit));
+		segmente.push(Segment {
+			tag: "DTM".to_string(),
+			elements: vec![Element {
+				components: vec![
+					"163".to_string(),
+					format!(
+						"{:04}{:02}{:02}{:02}{:02}{:02}",
+						mw.zeitpunkt.date().year(),
+						mw.zeitpunkt.date().month(),
+						mw.zeitpunkt.date().day(),
+						mw.zeitpunkt.time().hour(),
+						mw.zeitpunkt.time().minute(),
+						mw.zeitpunkt.time().second(),
+					),
+					"203".to_string(),
+				],
+			}],
+		});
+	}
+
+	wrap_mscons(nachricht, segmente)
+}
+
+// ---------------------------------------------------------------------------
+// §14a parsers + serializers
+// ---------------------------------------------------------------------------
+
+fn parse_utilmd_steuerbare_verbrauchseinrichtung(
+	segs: &[Segment],
+) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+	let malo_id = extract_malo_from_loc_or_nad_dp(segs)?;
+
+	// CCI+Z30 with geraetetyp
+	let geraetetyp_str = segs
+		.iter()
+		.find(|s| {
+			s.tag == "CCI"
+				&& s.elements
+					.first()
+					.and_then(|e| e.components.first())
+					.is_some_and(|q| q == "Z30")
+		})
+		.and_then(|s| s.elements.first())
+		.and_then(|e| e.components.get(2))
+		.cloned()
+		.unwrap_or_default();
+
+	let geraetetyp = match geraetetyp_str.as_str() {
+		"Waermepumpe" => SteuerbarerGeraetetyp::Waermepumpe,
+		"Wallbox" => SteuerbarerGeraetetyp::Wallbox,
+		"Speicher" => SteuerbarerGeraetetyp::Speicher,
+		other => {
+			let s = other.strip_prefix("Sonstiges:").unwrap_or(other);
+			SteuerbarerGeraetetyp::Sonstiges(s.to_string())
+		}
+	};
+
+	// QTY+220 for max_leistung_kw
+	let qty = find_qualified_segment(segs, "QTY", "220")?;
+	let leistung_str = qty
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "QTY+220".to_string(),
+			feld: "max_leistung".to_string(),
+		})?;
+	let max_leistung_kw =
+		leistung_str
+			.parse::<f64>()
+			.map_err(|_| CodecFehler::UngueltigerWert {
+				segment: "QTY+220".to_string(),
+				feld: "max_leistung".to_string(),
+				wert: leistung_str.clone(),
+			})?;
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Messstellenbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdSteuerbareVerbrauchseinrichtung(
+			UtilmdSteuerbareVerbrauchseinrichtung {
+				malo_id,
+				geraetetyp,
+				max_leistung_kw,
+			},
+		),
+	})
+}
+
+fn serialize_utilmd_steuerbare_verbrauchseinrichtung(
+	nachricht: &Nachricht,
+	p: &UtilmdSteuerbareVerbrauchseinrichtung,
+) -> String {
+	let geraetetyp_str = match &p.geraetetyp {
+		SteuerbarerGeraetetyp::Waermepumpe => "Waermepumpe".to_string(),
+		SteuerbarerGeraetetyp::Wallbox => "Wallbox".to_string(),
+		SteuerbarerGeraetetyp::Speicher => "Speicher".to_string(),
+		SteuerbarerGeraetetyp::Sonstiges(s) => format!("Sonstiges:{s}"),
+	};
+
+	let segmente = vec![
+		bgm_segment("E01"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		loc_segment(p.malo_id.as_str()),
+		Segment {
+			tag: "CCI".to_string(),
+			elements: vec![Element {
+				components: vec!["Z30".to_string(), String::new(), geraetetyp_str],
+			}],
+		},
+		qty_segment(p.max_leistung_kw, "kW"),
+	];
+	wrap_utilmd(nachricht, segmente)
+}
+
+fn parse_cls_steuersignal_msg(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+	let malo_id = extract_malo_from_loc_or_nad_dp(segs)?;
+
+	// STS+7++{code} for Steuerungsart
+	let sts = find_qualified_segment(segs, "STS", "7")?;
+	let status_code = sts
+		.elements
+		.get(2)
+		.and_then(|e| e.components.first())
+		.cloned()
+		.unwrap_or_default();
+
+	let steuerung = if status_code == "Z06" {
+		Steuerungsart::Freigabe
+	} else if status_code == "Z08" {
+		Steuerungsart::Abschaltung
+	} else if status_code.starts_with("DIM:") {
+		let prozent = status_code[4..].parse::<u8>().unwrap_or(0);
+		Steuerungsart::Dimmung { prozent }
+	} else {
+		Steuerungsart::Freigabe
+	};
+
+	// DTM+163 for zeitpunkt
+	let dtm = find_qualified_segment(segs, "DTM", "163")?;
+	let ts_str = dtm
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "DTM+163".to_string(),
+			feld: "zeitpunkt".to_string(),
+		})?;
+	let zeitpunkt = parse_datetime(ts_str)?;
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Messstellenbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::ClsSteuersignal(ClsSteuersignal {
+			malo_id,
+			steuerung,
+			zeitpunkt,
+		}),
+	})
+}
+
+fn serialize_cls_steuersignal(nachricht: &Nachricht, p: &ClsSteuersignal) -> String {
+	let steuerung_code = match &p.steuerung {
+		Steuerungsart::Freigabe => "Z06".to_string(),
+		Steuerungsart::Abschaltung => "Z08".to_string(),
+		Steuerungsart::Dimmung { prozent } => format!("DIM:{prozent}"),
+	};
+
+	let segmente = vec![
+		bgm_segment("E04"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		loc_segment(p.malo_id.as_str()),
+		sts_segment("7", &steuerung_code),
+		Segment {
+			tag: "DTM".to_string(),
+			elements: vec![Element {
+				components: vec![
+					"163".to_string(),
+					format!(
+						"{:04}{:02}{:02}{:02}{:02}{:02}",
+						p.zeitpunkt.date().year(),
+						p.zeitpunkt.date().month(),
+						p.zeitpunkt.date().day(),
+						p.zeitpunkt.time().hour(),
+						p.zeitpunkt.time().minute(),
+						p.zeitpunkt.time().second(),
+					),
+					"203".to_string(),
+				],
+			}],
+		},
+	];
+	wrap_utilmd(nachricht, segmente)
+}
+
+// ---------------------------------------------------------------------------
+// Gas parsers + serializers
+// ---------------------------------------------------------------------------
+
+fn parse_nominierung_msg(
+	segs: &[Segment],
+	absender: MarktpartnerId,
+	empfaenger: MarktpartnerId,
+) -> Result<Nachricht, CodecFehler> {
+	let bk_seg = find_qualified_segment(segs, "RFF", "Z06")?;
+	let bilanzkreis = bk_seg
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.cloned()
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "RFF+Z06".to_string(),
+			feld: "bilanzkreis".to_string(),
+		})?;
+
+	let zeitreihe_soll = extract_qty_dtm_timeseries(segs)?;
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Bilanzkreisverantwortlicher,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Marktgebietsverantwortlicher,
+		pruef_id: None,
+		payload: NachrichtenPayload::Nominierung(Nominierung {
+			bilanzkreis,
+			zeitreihe_soll,
+		}),
+	})
+}
+
+fn serialize_nominierung(nachricht: &Nachricht, p: &Nominierung) -> String {
+	let mut segmente = vec![
+		bgm_7_segment(),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		rff_segment("Z06", &p.bilanzkreis),
+	];
+
+	for mw in &p.zeitreihe_soll {
+		segmente.push(qty_segment(mw.wert, &mw.einheit));
+		segmente.push(Segment {
+			tag: "DTM".to_string(),
+			elements: vec![Element {
+				components: vec![
+					"163".to_string(),
+					format!(
+						"{:04}{:02}{:02}{:02}{:02}{:02}",
+						mw.zeitpunkt.date().year(),
+						mw.zeitpunkt.date().month(),
+						mw.zeitpunkt.date().day(),
+						mw.zeitpunkt.time().hour(),
+						mw.zeitpunkt.time().minute(),
+						mw.zeitpunkt.time().second(),
+					),
+					"203".to_string(),
+				],
+			}],
+		});
+	}
+
+	wrap_mscons(nachricht, segmente)
+}
+
+fn parse_nominierung_bestaetigung_msg(
+	segs: &[Segment],
+	absender: MarktpartnerId,
+	empfaenger: MarktpartnerId,
+) -> Result<Nachricht, CodecFehler> {
+	let bk_seg = find_qualified_segment(segs, "RFF", "Z06")?;
+	let bilanzkreis = bk_seg
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.cloned()
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "RFF+Z06".to_string(),
+			feld: "bilanzkreis".to_string(),
+		})?;
+
+	// STS+7++{code} for matching_ergebnis
+	let sts = find_qualified_segment(segs, "STS", "7")?;
+	let status_code = sts
+		.elements
+		.get(2)
+		.and_then(|e| e.components.first())
+		.cloned()
+		.unwrap_or_default();
+
+	let matching_ergebnis = if status_code == "Z06" {
+		MatchingErgebnis::Bestaetigt
+	} else if status_code.starts_with("TEIL:") {
+		let menge = status_code[5..].parse::<f64>().unwrap_or(0.0);
+		MatchingErgebnis::TeilweiseBestaetigt {
+			bestaetigte_menge_kwh: menge,
+		}
+	} else {
+		// Z08 = Abgelehnt, get grund from FTX
+		let grund = find_qualified_segment(segs, "FTX", "AAO")
+			.ok()
+			.and_then(|ftx| ftx.elements.get(2))
+			.and_then(|e| e.components.first())
+			.cloned()
+			.unwrap_or_else(|| "unbekannt".to_string());
+		MatchingErgebnis::Abgelehnt { grund }
+	};
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Marktgebietsverantwortlicher,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Bilanzkreisverantwortlicher,
+		pruef_id: None,
+		payload: NachrichtenPayload::NominierungBestaetigung(NominierungBestaetigung {
+			bilanzkreis,
+			matching_ergebnis,
+		}),
+	})
+}
+
+fn serialize_nominierung_bestaetigung(
+	nachricht: &Nachricht,
+	p: &NominierungBestaetigung,
+) -> String {
+	let mut segmente = vec![
+		bgm_7_segment(),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		rff_segment("Z06", &p.bilanzkreis),
+	];
+
+	match &p.matching_ergebnis {
+		MatchingErgebnis::Bestaetigt => {
+			segmente.push(sts_segment("7", "Z06"));
+		}
+		MatchingErgebnis::TeilweiseBestaetigt {
+			bestaetigte_menge_kwh,
+		} => {
+			segmente.push(sts_segment("7", &format!("TEIL:{bestaetigte_menge_kwh}")));
+		}
+		MatchingErgebnis::Abgelehnt { grund } => {
+			segmente.push(sts_segment("7", "Z08"));
+			segmente.push(ftx_segment("AAO", grund));
+		}
+	}
+
+	wrap_mscons(nachricht, segmente)
+}
+
+fn parse_renominierung_msg(
+	segs: &[Segment],
+	absender: MarktpartnerId,
+	empfaenger: MarktpartnerId,
+) -> Result<Nachricht, CodecFehler> {
+	let bk_seg = find_qualified_segment(segs, "RFF", "Z06")?;
+	let bilanzkreis = bk_seg
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.cloned()
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "RFF+Z06".to_string(),
+			feld: "bilanzkreis".to_string(),
+		})?;
+
+	let zeitreihe_soll = extract_qty_dtm_timeseries(segs)?;
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Bilanzkreisverantwortlicher,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Marktgebietsverantwortlicher,
+		pruef_id: None,
+		payload: NachrichtenPayload::Renominierung(Renominierung {
+			bilanzkreis,
+			zeitreihe_soll,
+		}),
+	})
+}
+
+fn serialize_renominierung(nachricht: &Nachricht, p: &Renominierung) -> String {
+	let mut segmente = vec![
+		bgm_7_segment(),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		rff_segment("Z06", &p.bilanzkreis),
+		rff_segment("ACE", "RENOM"),
+	];
+
+	for mw in &p.zeitreihe_soll {
+		segmente.push(qty_segment(mw.wert, &mw.einheit));
+		segmente.push(Segment {
+			tag: "DTM".to_string(),
+			elements: vec![Element {
+				components: vec![
+					"163".to_string(),
+					format!(
+						"{:04}{:02}{:02}{:02}{:02}{:02}",
+						mw.zeitpunkt.date().year(),
+						mw.zeitpunkt.date().month(),
+						mw.zeitpunkt.date().day(),
+						mw.zeitpunkt.time().hour(),
+						mw.zeitpunkt.time().minute(),
+						mw.zeitpunkt.time().second(),
+					),
+					"203".to_string(),
+				],
+			}],
+		});
+	}
+
+	wrap_mscons(nachricht, segmente)
+}
+
+fn parse_mscons_brennwert(
+	segs: &[Segment],
+	absender: MarktpartnerId,
+	empfaenger: MarktpartnerId,
+) -> Result<Nachricht, CodecFehler> {
+	// MOA+BRENNWERT for brennwert_kwh_per_m3
+	let moa_bw = find_qualified_segment(segs, "MOA", "BRENNWERT")?;
+	let bw_str = moa_bw
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "MOA+BRENNWERT".to_string(),
+			feld: "brennwert".to_string(),
+		})?;
+	let brennwert_kwh_per_m3 =
+		bw_str
+			.parse::<f64>()
+			.map_err(|_| CodecFehler::UngueltigerWert {
+				segment: "MOA+BRENNWERT".to_string(),
+				feld: "brennwert".to_string(),
+				wert: bw_str.clone(),
+			})?;
+
+	// MOA+ZUSTAND for zustandszahl
+	let moa_zs = find_qualified_segment(segs, "MOA", "ZUSTAND")?;
+	let zs_str = moa_zs
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "MOA+ZUSTAND".to_string(),
+			feld: "zustandszahl".to_string(),
+		})?;
+	let zustandszahl = zs_str
+		.parse::<f64>()
+		.map_err(|_| CodecFehler::UngueltigerWert {
+			segment: "MOA+ZUSTAND".to_string(),
+			feld: "zustandszahl".to_string(),
+			wert: zs_str.clone(),
+		})?;
+
+	// RFF+Z13 for netzgebiet (repurposed, no PID)
+	let netzgebiet = find_qualified_segment(segs, "RFF", "Z13")
+		.ok()
+		.and_then(|rff| rff.elements.first())
+		.and_then(|e| e.components.get(1))
+		.cloned()
+		.unwrap_or_default();
+
+	let gueltig_ab = extract_date(segs, "163")?;
+	let gueltig_bis = extract_date(segs, "164")?;
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Fernleitungsnetzbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Lieferant,
+		pruef_id: None,
+		payload: NachrichtenPayload::MsconsBrennwert(MsconsBrennwert {
+			netzgebiet,
+			brennwert_kwh_per_m3,
+			zustandszahl,
+			gueltig_ab,
+			gueltig_bis,
+		}),
+	})
+}
+
+fn serialize_mscons_brennwert(nachricht: &Nachricht, p: &MsconsBrennwert) -> String {
+	let segmente = vec![
+		bgm_7_segment(),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		rff_z13_segment(&p.netzgebiet),
+		moa_segment("BRENNWERT", p.brennwert_kwh_per_m3),
+		moa_segment("ZUSTAND", p.zustandszahl),
+		dtm_date_segment("163", &p.gueltig_ab),
+		dtm_date_segment("164", &p.gueltig_bis),
+	];
+	wrap_mscons(nachricht, segmente)
+}
+
+fn parse_utilmd_ausspeisepunkt(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+	let malo_id = extract_malo_from_loc_or_nad_dp(segs)?;
+
+	// Two NAD+DP segments: first = nb, second = fnb
+	let dp_segments: Vec<&Segment> = segs
+		.iter()
+		.filter(|s| {
+			s.tag == "NAD"
+				&& s.elements
+					.first()
+					.and_then(|e| e.components.first())
+					.is_some_and(|q| q == "DP")
+		})
+		.collect();
+
+	let nb = dp_segments
+		.first()
+		.and_then(|s| s.elements.get(1))
+		.and_then(|e| e.components.first())
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "NAD+DP".to_string(),
+			feld: "nb".to_string(),
+		})?;
+	let nb_id = MarktpartnerId::new(nb).map_err(|_| CodecFehler::UngueltigerWert {
+		segment: "NAD+DP".to_string(),
+		feld: "nb".to_string(),
+		wert: nb.clone(),
+	})?;
+
+	let fnb = dp_segments
+		.get(1)
+		.and_then(|s| s.elements.get(1))
+		.and_then(|e| e.components.first())
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "NAD+DP".to_string(),
+			feld: "fnb".to_string(),
+		})?;
+	let fnb_id = MarktpartnerId::new(fnb).map_err(|_| CodecFehler::UngueltigerWert {
+		segment: "NAD+DP".to_string(),
+		feld: "fnb".to_string(),
+		wert: fnb.clone(),
+	})?;
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Fernleitungsnetzbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdAusspeisepunkt(UtilmdAusspeisepunkt {
+			malo_id,
+			nb: nb_id,
+			fnb: fnb_id,
+		}),
+	})
+}
+
+fn serialize_utilmd_ausspeisepunkt(nachricht: &Nachricht, p: &UtilmdAusspeisepunkt) -> String {
+	let segmente = vec![
+		bgm_segment("E01"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		loc_segment(p.malo_id.as_str()),
+		nad_segment("DP", p.nb.as_str()),
+		nad_segment("DP", p.fnb.as_str()),
+	];
+	wrap_utilmd(nachricht, segmente)
+}
+
+// ---------------------------------------------------------------------------
+// Querschnitt parsers + serializers
+// ---------------------------------------------------------------------------
+
+fn parse_iftsta(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+
+	// RFF+ACE for referenz_nachricht
+	let rff = find_qualified_segment(segs, "RFF", "ACE")?;
+	let referenz_nachricht = rff
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.cloned()
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "RFF+ACE".to_string(),
+			feld: "referenz_nachricht".to_string(),
+		})?;
+
+	// STS+7++{code}
+	let sts = find_qualified_segment(segs, "STS", "7")?;
+	let status_code = sts
+		.elements
+		.get(2)
+		.and_then(|e| e.components.first())
+		.cloned()
+		.unwrap_or_default();
+
+	// FTX+AAO+++{text}
+	let beschreibung = find_qualified_segment(segs, "FTX", "AAO")
+		.ok()
+		.and_then(|ftx| ftx.elements.get(2))
+		.and_then(|e| e.components.first())
+		.cloned()
+		.unwrap_or_default();
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Lieferant,
+		pruef_id: None,
+		payload: NachrichtenPayload::IftstaStatusmeldung(IftstaStatusmeldung {
+			referenz_nachricht,
+			status_code,
+			beschreibung,
+		}),
+	})
+}
+
+fn serialize_iftsta_statusmeldung(
+	nachricht: &Nachricht,
+	p: &IftstaStatusmeldung,
+) -> String {
+	let segmente = vec![
+		bgm_segment("23"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		rff_segment("ACE", &p.referenz_nachricht),
+		sts_segment("7", &p.status_code),
+		ftx_segment("AAO", &p.beschreibung),
+	];
+	wrap_edifact(nachricht, "IFTSTA", "D:01B:UN:2.0g", segmente)
+}
+
+fn parse_partin(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+
+	// NAD+DP for mp_id
+	let dp = find_qualified_segment(segs, "NAD", "DP")?;
+	let mp_id_str = dp
+		.elements
+		.get(1)
+		.and_then(|e| e.components.first())
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "NAD+DP".to_string(),
+			feld: "mp_id".to_string(),
+		})?;
+	let mp_id = MarktpartnerId::new(mp_id_str).map_err(|_| CodecFehler::UngueltigerWert {
+		segment: "NAD+DP".to_string(),
+		feld: "mp_id".to_string(),
+		wert: mp_id_str.clone(),
+	})?;
+
+	// CTA+IC+:{name}
+	let cta = find_qualified_segment(segs, "CTA", "IC")?;
+	let name = cta
+		.elements
+		.get(1)
+		.and_then(|e| e.components.get(1))
+		.cloned()
+		.unwrap_or_default();
+
+	// RFF+ACD:{rolle}
+	let rff = find_qualified_segment(segs, "RFF", "ACD")?;
+	let rolle = rff
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.cloned()
+		.unwrap_or_default();
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Lieferant,
+		pruef_id: None,
+		payload: NachrichtenPayload::PartinMarktpartner(PartinMarktpartner {
+			mp_id,
+			name,
+			rolle,
+		}),
+	})
+}
+
+fn serialize_partin_marktpartner(nachricht: &Nachricht, p: &PartinMarktpartner) -> String {
+	let segmente = vec![
+		bgm_segment("Z34"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		nad_segment("DP", p.mp_id.as_str()),
+		Segment {
+			tag: "CTA".to_string(),
+			elements: vec![
+				Element {
+					components: vec!["IC".to_string()],
+				},
+				Element {
+					components: vec![String::new(), p.name.clone()],
+				},
+			],
+		},
+		rff_segment("ACD", &p.rolle),
+	];
+	wrap_edifact(nachricht, "PARTIN", "D:01B:UN:1.0e", segmente)
+}
+
+fn parse_utilts(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+
+	// RFF+Z13 for formel_id
+	let rff = find_qualified_segment(segs, "RFF", "Z13")?;
+	let formel_id = rff
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.cloned()
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "RFF+Z13".to_string(),
+			feld: "formel_id".to_string(),
+		})?;
+
+	// IMD+F++:::{bezeichnung}
+	let imd = find_segment(segs, "IMD")?;
+	let bezeichnung = imd
+		.elements
+		.get(2)
+		.and_then(|e| e.components.get(3))
+		.cloned()
+		.unwrap_or_default();
+
+	// CCI+Z30++{zeitreihen_typ}
+	let cci = find_qualified_segment(segs, "CCI", "Z30")?;
+	let zeitreihen_typ = cci
+		.elements
+		.first()
+		.and_then(|e| e.components.get(2))
+		.cloned()
+		.unwrap_or_default();
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Lieferant,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtiltsZaehlzeitdefinition(UtiltsZaehlzeitdefinition {
+			formel_id,
+			bezeichnung,
+			zeitreihen_typ,
+		}),
+	})
+}
+
+fn serialize_utilts_zaehlzeitdefinition(
+	nachricht: &Nachricht,
+	p: &UtiltsZaehlzeitdefinition,
+) -> String {
+	let segmente = vec![
+		bgm_segment("Z08"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		rff_z13_segment(&p.formel_id),
+		imd_segment(&p.bezeichnung),
+		Segment {
+			tag: "CCI".to_string(),
+			elements: vec![Element {
+				components: vec!["Z30".to_string(), String::new(), p.zeitreihen_typ.clone()],
+			}],
+		},
+	];
+	wrap_edifact(nachricht, "UTILTS", "D:01B:UN:1.1e", segmente)
+}
+
+// ---------------------------------------------------------------------------
+// Shared time-series extraction helper
+// ---------------------------------------------------------------------------
+
+fn extract_qty_dtm_timeseries(segs: &[Segment]) -> Result<Vec<Messwert>, CodecFehler> {
+	let mut werte = Vec::new();
+	let mut i = 0;
+	while i < segs.len() {
+		if segs[i].tag == "QTY"
+			&& segs[i]
+				.elements
+				.first()
+				.and_then(|e| e.components.first())
+				.is_some_and(|q| q == "220")
+		{
+			let wert_str = segs[i]
+				.elements
+				.first()
+				.and_then(|e| e.components.get(1))
+				.ok_or(CodecFehler::FeldFehlt {
+					segment: "QTY+220".to_string(),
+					feld: "wert".to_string(),
+				})?;
+			let wert = wert_str
+				.parse::<f64>()
+				.map_err(|_| CodecFehler::UngueltigerWert {
+					segment: "QTY+220".to_string(),
+					feld: "wert".to_string(),
+					wert: wert_str.clone(),
+				})?;
+			let einheit = extract_einheit_from_qty(&segs[i]);
+
+			let zeitpunkt = if i + 1 < segs.len()
+				&& segs[i + 1].tag == "DTM"
+				&& segs[i + 1]
+					.elements
+					.first()
+					.and_then(|e| e.components.first())
+					.is_some_and(|q| q == "163")
+			{
+				let ts_str = segs[i + 1]
+					.elements
+					.first()
+					.and_then(|e| e.components.get(1))
+					.ok_or(CodecFehler::FeldFehlt {
+						segment: "DTM+163".to_string(),
+						feld: "zeitpunkt".to_string(),
+					})?;
+				parse_datetime(ts_str)?
+			} else {
+				return Err(CodecFehler::SegmentFehlt {
+					erwartet: "DTM+163 after QTY".to_string(),
+				});
+			};
+
+			werte.push(Messwert {
+				zeitpunkt,
+				wert,
+				einheit,
+				status: MesswertStatus::Gemessen,
+			});
+			i += 2;
+			continue;
+		}
+		i += 1;
+	}
+	Ok(werte)
 }
 
 // ---------------------------------------------------------------------------

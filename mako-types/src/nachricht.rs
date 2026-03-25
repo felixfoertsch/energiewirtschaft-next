@@ -71,4 +71,8 @@ pub enum NachrichtenPayload {
 	Renominierung(Renominierung),
 	MsconsBrennwert(MsconsBrennwert),
 	UtilmdAusspeisepunkt(UtilmdAusspeisepunkt),
+	// Querschnitt
+	IftstaStatusmeldung(crate::querschnitt::IftstaStatusmeldung),
+	PartinMarktpartner(crate::querschnitt::PartinMarktpartner),
+	UtiltsZaehlzeitdefinition(crate::querschnitt::UtiltsZaehlzeitdefinition),
 }
