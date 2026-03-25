@@ -12,3 +12,4 @@ pub mod remadv;
 pub mod reqote;
 pub mod utilmd;
 pub mod utilts;
+pub mod xml;

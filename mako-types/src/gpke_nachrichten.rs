@@ -394,6 +394,23 @@ pub struct RdKostenblatt {
 	pub massnahme_ende: NaiveDateTime,
 }
 
+/// StatusRequest_MarketDocument (RD 7.6.1)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RdStatusRequest {
+	pub ressource_id: String,
+	pub anfrage_typ: String,
+}
+
+/// Kaskade (RD cascading of redispatch measures, FV2510)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RdKaskade {
+	pub ressource_id: String,
+	pub kaskaden_stufe: u8,
+	pub sollwert_kw: f64,
+	pub start: NaiveDateTime,
+	pub ende: NaiveDateTime,
+}
+
 // === §14a EnWG Message Types ===
 
 /// UTILMD Anmeldung steuerbare Verbrauchseinrichtung (§14a 8.1)

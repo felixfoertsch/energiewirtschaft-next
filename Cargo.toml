@@ -30,4 +30,5 @@ repository = "https://github.com/felixfoertsch/energiewirtschaft-next"
 chrono = { version = "0.4", default-features = false, features = ["serde"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+quick-xml = { version = "0.37", features = ["serialize"] }
 thiserror = "2"

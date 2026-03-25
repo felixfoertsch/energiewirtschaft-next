@@ -62,6 +62,8 @@ pub enum NachrichtenPayload {
 	RdEngpass(RdEngpass),
 	RdNichtverfuegbarkeit(RdNichtverfuegbarkeit),
 	RdKostenblatt(RdKostenblatt),
+	RdStatusRequest(RdStatusRequest),
+	RdKaskade(RdKaskade),
 	// §14a EnWG
 	UtilmdSteuerbareVerbrauchseinrichtung(UtilmdSteuerbareVerbrauchseinrichtung),
 	ClsSteuersignal(ClsSteuersignal),

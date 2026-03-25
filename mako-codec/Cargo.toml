@@ -8,6 +8,7 @@ chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
+quick-xml = { workspace = true }
 mako-types = { path = "../mako-types" }
 mako-quittung = { path = "../mako-quittung" }
 
