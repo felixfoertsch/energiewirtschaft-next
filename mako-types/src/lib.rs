@@ -1,3 +1,4 @@
+pub mod ebd;
 pub mod sparte;
 pub mod rolle;
 pub mod ids;
