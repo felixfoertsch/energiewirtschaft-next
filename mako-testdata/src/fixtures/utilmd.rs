@@ -1,14 +1,16 @@
 use chrono::NaiveDate;
 
-use mako_types::gpke_nachrichten::UtilmdAnmeldung;
+use mako_types::gpke_nachrichten::*;
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 use mako_types::pruefidentifikator::PruefIdentifikator;
 use mako_types::rolle::MarktRolle;
 
 use crate::ids::{test_malo, test_mp_id};
 
-/// Build a complete EDIFACT UTILMD Anmeldung string using test IDs.
-/// Sender = test_mp_id(0) (LieferantNeu), Empfaenger = test_mp_id(1) (Netzbetreiber).
+// ---------------------------------------------------------------------------
+// 1. Anmeldung (E01 / PID 44001) — LFN -> NB
+// ---------------------------------------------------------------------------
+
 pub fn anmeldung_lfw_edi() -> String {
 	let sender = test_mp_id(0);
 	let empfaenger = test_mp_id(1);
@@ -32,7 +34,6 @@ pub fn anmeldung_lfw_edi() -> String {
 	)
 }
 
-/// The expected parsed Nachricht for the EDIFACT string from `anmeldung_lfw_edi()`.
 pub fn anmeldung_lfw_erwartet() -> Nachricht {
 	let sender = test_mp_id(0);
 	let empfaenger = test_mp_id(1);
@@ -51,11 +52,499 @@ pub fn anmeldung_lfw_erwartet() -> Nachricht {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// 2. Bestaetigung (E01 / PID 44002) — NB -> LFN
+// ---------------------------------------------------------------------------
+
+pub fn bestaetigung_edi() -> String {
+	let sender = test_mp_id(1); // NB
+	let empfaenger = test_mp_id(0); // LFN
+	let malo = test_malo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E01+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 IDE+24+{malo}'\
+		 DTM+92:20260701:102'\
+		 RFF+Z13:44002'\
+		 UNT+9+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo = malo.as_str(),
+	)
+}
+
+pub fn bestaetigung_erwartet() -> Nachricht {
+	let nb = test_mp_id(1);
+	let lfn = test_mp_id(0);
+
+	Nachricht {
+		absender: nb,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger: lfn.clone(),
+		empfaenger_rolle: MarktRolle::LieferantNeu,
+		pruef_id: Some(PruefIdentifikator::AnmeldungBestaetigung),
+		payload: NachrichtenPayload::UtilmdBestaetigung(UtilmdBestaetigung {
+			malo_id: test_malo(0),
+			bestaetigt_fuer: lfn,
+			lieferbeginn: NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
+		}),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 3. Abmeldung (E02 / PID 44004) — NB -> LFA
+// ---------------------------------------------------------------------------
+
+pub fn abmeldung_edi() -> String {
+	let sender = test_mp_id(1); // NB
+	let empfaenger = test_mp_id(2); // LFA
+	let malo = test_malo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E02+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 IDE+24+{malo}'\
+		 DTM+92:20260630:102'\
+		 RFF+Z13:44004'\
+		 UNT+9+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo = malo.as_str(),
+	)
+}
+
+pub fn abmeldung_erwartet() -> Nachricht {
+	let nb = test_mp_id(1);
+	let lfa = test_mp_id(2);
+
+	Nachricht {
+		absender: nb,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger: lfa.clone(),
+		empfaenger_rolle: MarktRolle::LieferantAlt,
+		pruef_id: Some(PruefIdentifikator::AbmeldungNn),
+		payload: NachrichtenPayload::UtilmdAbmeldung(UtilmdAbmeldung {
+			malo_id: test_malo(0),
+			lieferant_alt: lfa,
+			lieferende: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+		}),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 4. Ablehnung (E01 / PID 44003) — LFA -> NB
+// ---------------------------------------------------------------------------
+
+pub fn ablehnung_edi() -> String {
+	let sender = test_mp_id(2); // LFA
+	let empfaenger = test_mp_id(1); // NB
+	let malo = test_malo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E01+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 IDE+24+{malo}'\
+		 STS+FRIST'\
+		 RFF+Z13:44003'\
+		 UNT+9+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo = malo.as_str(),
+	)
+}
+
+pub fn ablehnung_erwartet() -> Nachricht {
+	let lfa = test_mp_id(2);
+	let nb = test_mp_id(1);
+
+	Nachricht {
+		absender: lfa,
+		absender_rolle: MarktRolle::LieferantAlt,
+		empfaenger: nb,
+		empfaenger_rolle: MarktRolle::Netzbetreiber,
+		pruef_id: Some(PruefIdentifikator::AnmeldungAblehnung),
+		payload: NachrichtenPayload::UtilmdAblehnung(UtilmdAblehnung {
+			malo_id: test_malo(0),
+			grund: AblehnungsGrund::Fristverletzung,
+		}),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 5. Zuordnung (E06 / PID 44005) — NB -> LFN
+// ---------------------------------------------------------------------------
+
+pub fn zuordnung_edi() -> String {
+	let sender = test_mp_id(1); // NB
+	let empfaenger = test_mp_id(0); // LFN
+	let malo = test_malo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E06+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 IDE+24+{malo}'\
+		 DTM+92:20260701:102'\
+		 RFF+Z13:44005'\
+		 UNT+9+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo = malo.as_str(),
+	)
+}
+
+pub fn zuordnung_erwartet() -> Nachricht {
+	let nb = test_mp_id(1);
+	let lfn = test_mp_id(0);
+
+	Nachricht {
+		absender: nb,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger: lfn.clone(),
+		empfaenger_rolle: MarktRolle::LieferantNeu,
+		pruef_id: Some(PruefIdentifikator::AbmeldungBestaetigung),
+		payload: NachrichtenPayload::UtilmdZuordnung(UtilmdZuordnung {
+			malo_id: test_malo(0),
+			zugeordnet_an: lfn,
+			lieferbeginn: NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
+		}),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 6. LieferendeAbmeldung (E02 / PID 44006) — LF -> NB
+// ---------------------------------------------------------------------------
+
+pub fn lieferende_abmeldung_edi() -> String {
+	let sender = test_mp_id(3); // LF
+	let empfaenger = test_mp_id(1); // NB
+	let malo = test_malo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E02+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 IDE+24+{malo}'\
+		 DTM+92:20260930:102'\
+		 RFF+Z13:44006'\
+		 UNT+9+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo = malo.as_str(),
+	)
+}
+
+pub fn lieferende_abmeldung_erwartet() -> Nachricht {
+	let lf = test_mp_id(3);
+	let nb = test_mp_id(1);
+
+	Nachricht {
+		absender: lf.clone(),
+		absender_rolle: MarktRolle::Lieferant,
+		empfaenger: nb,
+		empfaenger_rolle: MarktRolle::Netzbetreiber,
+		pruef_id: Some(PruefIdentifikator::AbmeldungAblehnung),
+		payload: NachrichtenPayload::UtilmdLieferendeAbmeldung(UtilmdLieferendeAbmeldung {
+			malo_id: test_malo(0),
+			lieferant: lf,
+			lieferende: NaiveDate::from_ymd_opt(2026, 9, 30).unwrap(),
+		}),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 7. LieferendeBestaetigung (E01 / no PID) — NB -> LF
+// ---------------------------------------------------------------------------
+
+pub fn lieferende_bestaetigung_edi() -> String {
+	let sender = test_mp_id(1); // NB
+	let empfaenger = test_mp_id(3); // LF
+	let malo = test_malo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E01+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 IDE+24+{malo}'\
+		 DTM+92:20260930:102'\
+		 UNT+8+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo = malo.as_str(),
+	)
+}
+
+pub fn lieferende_bestaetigung_erwartet() -> Nachricht {
+	let nb = test_mp_id(1);
+	let lf = test_mp_id(3);
+
+	Nachricht {
+		absender: nb,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger: lf,
+		empfaenger_rolle: MarktRolle::Lieferant,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdLieferendeBestaetigung(UtilmdLieferendeBestaetigung {
+			malo_id: test_malo(0),
+			lieferende: NaiveDate::from_ymd_opt(2026, 9, 30).unwrap(),
+		}),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 8. Stammdatenaenderung (E03 / PID 44112) — NB -> LF
+// ---------------------------------------------------------------------------
+
+pub fn stammdatenaenderung_edi() -> String {
+	let sender = test_mp_id(1); // NB
+	let empfaenger = test_mp_id(3); // LF
+	let malo = test_malo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E03+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 IDE+24+{malo}'\
+		 RFF+Z13:44112'\
+		 CCI+Spannungsebene'\
+		 CAV+Niederspannung'\
+		 CCI+Netzgebiet'\
+		 CAV+Berlin'\
+		 UNT+12+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo = malo.as_str(),
+	)
+}
+
+pub fn stammdatenaenderung_erwartet() -> Nachricht {
+	let nb = test_mp_id(1);
+	let lf = test_mp_id(3);
+
+	Nachricht {
+		absender: nb.clone(),
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger: lf,
+		empfaenger_rolle: MarktRolle::Lieferant,
+		pruef_id: Some(PruefIdentifikator::Stammdatenaenderung),
+		payload: NachrichtenPayload::UtilmdStammdatenaenderung(UtilmdStammdatenaenderung {
+			malo_id: test_malo(0),
+			initiator: nb,
+			aenderungen: vec![
+				Stammdatenfeld {
+					feld: "Spannungsebene".to_string(),
+					alter_wert: None,
+					neuer_wert: "Niederspannung".to_string(),
+				},
+				Stammdatenfeld {
+					feld: "Netzgebiet".to_string(),
+					alter_wert: None,
+					neuer_wert: "Berlin".to_string(),
+				},
+			],
+		}),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 9. Zuordnungsliste (E06 / no PID, multiple IDE) — NB -> LF
+// ---------------------------------------------------------------------------
+
+pub fn zuordnungsliste_edi() -> String {
+	let sender = test_mp_id(1); // NB
+	let empfaenger = test_mp_id(3); // LF
+	let malo0 = test_malo(0);
+	let malo1 = test_malo(1);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E06+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 IDE+24+{malo0}'\
+		 DTM+92:20260701:102'\
+		 IDE+24+{malo1}'\
+		 DTM+92:20260801:102'\
+		 UNT+10+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo0 = malo0.as_str(),
+		malo1 = malo1.as_str(),
+	)
+}
+
+pub fn zuordnungsliste_erwartet() -> Nachricht {
+	let nb = test_mp_id(1);
+	let lf = test_mp_id(3);
+
+	Nachricht {
+		absender: nb,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger: lf.clone(),
+		empfaenger_rolle: MarktRolle::Lieferant,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdZuordnungsliste(UtilmdZuordnungsliste {
+			eintraege: vec![
+				ZuordnungsEintrag {
+					malo_id: test_malo(0),
+					zugeordnet_an: lf.clone(),
+					gueltig_ab: NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
+				},
+				ZuordnungsEintrag {
+					malo_id: test_malo(1),
+					zugeordnet_an: lf,
+					gueltig_ab: NaiveDate::from_ymd_opt(2026, 8, 1).unwrap(),
+				},
+			],
+		}),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 10. Geschaeftsdatenanfrage (E09 / no PID) — LF -> NB
+// ---------------------------------------------------------------------------
+
+pub fn geschaeftsdatenanfrage_edi() -> String {
+	let sender = test_mp_id(3); // LF
+	let empfaenger = test_mp_id(1); // NB
+	let malo = test_malo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E09+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 IDE+24+{malo}'\
+		 UNT+7+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo = malo.as_str(),
+	)
+}
+
+pub fn geschaeftsdatenanfrage_erwartet() -> Nachricht {
+	let lf = test_mp_id(3);
+	let nb = test_mp_id(1);
+
+	Nachricht {
+		absender: lf.clone(),
+		absender_rolle: MarktRolle::Lieferant,
+		empfaenger: nb,
+		empfaenger_rolle: MarktRolle::Netzbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdGeschaeftsdatenanfrage(UtilmdGeschaeftsdatenanfrage {
+			malo_id: test_malo(0),
+			anfragender: lf,
+		}),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 11. Geschaeftsdatenantwort (E09 resp / no PID, with CCI) — NB -> LF
+// ---------------------------------------------------------------------------
+
+pub fn geschaeftsdatenantwort_edi() -> String {
+	let sender = test_mp_id(1); // NB
+	let empfaenger = test_mp_id(3); // LF
+	let malo = test_malo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E09+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 IDE+24+{malo}'\
+		 CCI+Spannungsebene'\
+		 CAV+Niederspannung'\
+		 CCI+Netzgebiet'\
+		 CAV+Berlin'\
+		 UNT+11+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo = malo.as_str(),
+	)
+}
+
+pub fn geschaeftsdatenantwort_erwartet() -> Nachricht {
+	let nb = test_mp_id(1);
+	let lf = test_mp_id(3);
+
+	Nachricht {
+		absender: nb,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger: lf,
+		empfaenger_rolle: MarktRolle::Lieferant,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdGeschaeftsdatenantwort(UtilmdGeschaeftsdatenantwort {
+			malo_id: test_malo(0),
+			stammdaten: vec![
+				Stammdatenfeld {
+					feld: "Spannungsebene".to_string(),
+					alter_wert: None,
+					neuer_wert: "Niederspannung".to_string(),
+				},
+				Stammdatenfeld {
+					feld: "Netzgebiet".to_string(),
+					alter_wert: None,
+					neuer_wert: "Berlin".to_string(),
+				},
+			],
+		}),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
 #[cfg(test)]
 mod tests {
 	use mako_codec::edifact::dispatch::{parse_nachricht, serialize_nachricht};
 
 	use super::*;
+
+	// --- 1. Anmeldung ---
 
 	#[test]
 	fn parse_anmeldung_lfw() {
@@ -69,6 +558,176 @@ mod tests {
 	fn roundtrip_anmeldung_lfw() {
 		let edi = anmeldung_lfw_edi();
 		let parsed = parse_nachricht(&edi).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- 2. Bestaetigung ---
+
+	#[test]
+	fn parse_bestaetigung() {
+		let edi = bestaetigung_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, bestaetigung_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_bestaetigung() {
+		let parsed = parse_nachricht(&bestaetigung_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- 3. Abmeldung ---
+
+	#[test]
+	fn parse_abmeldung() {
+		let edi = abmeldung_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, abmeldung_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_abmeldung() {
+		let parsed = parse_nachricht(&abmeldung_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- 4. Ablehnung ---
+
+	#[test]
+	fn parse_ablehnung() {
+		let edi = ablehnung_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, ablehnung_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_ablehnung() {
+		let parsed = parse_nachricht(&ablehnung_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- 5. Zuordnung ---
+
+	#[test]
+	fn parse_zuordnung() {
+		let edi = zuordnung_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, zuordnung_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_zuordnung() {
+		let parsed = parse_nachricht(&zuordnung_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- 6. LieferendeAbmeldung ---
+
+	#[test]
+	fn parse_lieferende_abmeldung() {
+		let edi = lieferende_abmeldung_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, lieferende_abmeldung_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_lieferende_abmeldung() {
+		let parsed = parse_nachricht(&lieferende_abmeldung_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- 7. LieferendeBestaetigung ---
+
+	#[test]
+	fn parse_lieferende_bestaetigung() {
+		let edi = lieferende_bestaetigung_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, lieferende_bestaetigung_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_lieferende_bestaetigung() {
+		let parsed = parse_nachricht(&lieferende_bestaetigung_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- 8. Stammdatenaenderung ---
+
+	#[test]
+	fn parse_stammdatenaenderung() {
+		let edi = stammdatenaenderung_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, stammdatenaenderung_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_stammdatenaenderung() {
+		let parsed = parse_nachricht(&stammdatenaenderung_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- 9. Zuordnungsliste ---
+
+	#[test]
+	fn parse_zuordnungsliste() {
+		let edi = zuordnungsliste_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, zuordnungsliste_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_zuordnungsliste() {
+		let parsed = parse_nachricht(&zuordnungsliste_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- 10. Geschaeftsdatenanfrage ---
+
+	#[test]
+	fn parse_geschaeftsdatenanfrage() {
+		let edi = geschaeftsdatenanfrage_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, geschaeftsdatenanfrage_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_geschaeftsdatenanfrage() {
+		let parsed = parse_nachricht(&geschaeftsdatenanfrage_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- 11. Geschaeftsdatenantwort ---
+
+	#[test]
+	fn parse_geschaeftsdatenantwort() {
+		let edi = geschaeftsdatenantwort_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, geschaeftsdatenantwort_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_geschaeftsdatenantwort() {
+		let parsed = parse_nachricht(&geschaeftsdatenantwort_edi()).unwrap();
 		let serialized = serialize_nachricht(&parsed);
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
