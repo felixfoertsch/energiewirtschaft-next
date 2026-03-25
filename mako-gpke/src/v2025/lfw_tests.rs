@@ -199,7 +199,13 @@ fn lfa_ablehnung_transitions_to_abgelehnt() {
 			grund: AblehnungsGrund::KeinVertrag,
 		}
 	);
-	assert!(out.nachrichten.is_empty());
+	assert_eq!(out.nachrichten.len(), 1);
+	let msg = &out.nachrichten[0];
+	assert_eq!(msg.absender, nb_id());
+	assert_eq!(msg.absender_rolle, MarktRolle::Netzbetreiber);
+	assert_eq!(msg.empfaenger, lfn_id());
+	assert_eq!(msg.empfaenger_rolle, MarktRolle::LieferantNeu);
+	assert!(matches!(msg.payload, NachrichtenPayload::UtilmdAblehnung(_)));
 }
 
 // --- Invalid transitions ---
@@ -265,6 +271,12 @@ fn ec6_timeout_from_anmeldung_eingegangen() {
 			grund: AblehnungsGrund::Fristverletzung,
 		}
 	);
+	assert_eq!(out.nachrichten.len(), 1);
+	let msg = &out.nachrichten[0];
+	assert_eq!(msg.absender, nb_id());
+	assert_eq!(msg.empfaenger, lfn_id());
+	assert_eq!(msg.empfaenger_rolle, MarktRolle::LieferantNeu);
+	assert!(matches!(msg.payload, NachrichtenPayload::UtilmdAblehnung(_)));
 }
 
 #[test]
@@ -285,6 +297,8 @@ fn ec6_timeout_from_abmeldung_gesendet() {
 			grund: AblehnungsGrund::Fristverletzung,
 		}
 	);
+	assert_eq!(out.nachrichten.len(), 1);
+	assert!(matches!(out.nachrichten[0].payload, NachrichtenPayload::UtilmdAblehnung(_)));
 }
 
 #[test]
@@ -306,6 +320,8 @@ fn ec6_timeout_from_widerspruchsfrist() {
 			grund: AblehnungsGrund::Fristverletzung,
 		}
 	);
+	assert_eq!(out.nachrichten.len(), 1);
+	assert!(matches!(out.nachrichten[0].payload, NachrichtenPayload::UtilmdAblehnung(_)));
 }
 
 #[test]

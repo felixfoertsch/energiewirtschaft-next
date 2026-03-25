@@ -3,6 +3,7 @@ use mako_types::gpke_nachrichten::{
 	AblehnungsGrund, Stammdatenfeld, UtilmdStammdatenaenderung,
 };
 use mako_types::ids::{MaLoId, MarktpartnerId};
+use mako_types::nachricht::NachrichtenPayload;
 
 use super::stammdaten::{StammdatenEvent, StammdatenState, reduce};
 
@@ -62,7 +63,11 @@ fn gesendet_plus_bestaetigt_transitions_to_bestaetigt() {
 		out.state,
 		StammdatenState::AenderungBestaetigt { malo: malo() }
 	);
-	assert!(out.nachrichten.is_empty());
+	assert_eq!(out.nachrichten.len(), 1);
+	assert!(matches!(
+		out.nachrichten[0].payload,
+		NachrichtenPayload::UtilmdStammdatenaenderung(_)
+	));
 }
 
 #[test]
@@ -102,6 +107,8 @@ fn rejection_from_gesendet() {
 			grund: AblehnungsGrund::Sonstiges("Ungültige Daten".to_string()),
 		}
 	);
+	assert_eq!(out.nachrichten.len(), 1);
+	assert!(matches!(out.nachrichten[0].payload, NachrichtenPayload::UtilmdAblehnung(_)));
 }
 
 // --- Timeout ---
@@ -122,6 +129,8 @@ fn timeout_from_gesendet() {
 			grund: AblehnungsGrund::Fristverletzung,
 		}
 	);
+	assert_eq!(out.nachrichten.len(), 1);
+	assert!(matches!(out.nachrichten[0].payload, NachrichtenPayload::UtilmdAblehnung(_)));
 }
 
 // --- Invalid transitions ---

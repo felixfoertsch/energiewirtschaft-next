@@ -1,7 +1,11 @@
 use mako_types::fehler::ProzessFehler;
-use mako_types::gpke_nachrichten::{AblehnungsGrund, Stammdatenfeld, UtilmdStammdatenaenderung};
+use mako_types::gpke_nachrichten::{
+	AblehnungsGrund, Stammdatenfeld, UtilmdAblehnung, UtilmdStammdatenaenderung,
+};
 use mako_types::ids::{MaLoId, MarktpartnerId};
+use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 use mako_types::reducer::ReducerOutput;
+use mako_types::rolle::MarktRolle;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StammdatenState {
@@ -28,15 +32,6 @@ pub enum StammdatenEvent {
 	FristUeberschritten,
 }
 
-fn malo_from_state(state: &StammdatenState) -> MaLoId {
-	match state {
-		StammdatenState::Idle => unreachable!("Idle has no MaLoId"),
-		StammdatenState::AenderungGesendet { malo, .. }
-		| StammdatenState::AenderungBestaetigt { malo, .. }
-		| StammdatenState::Abgelehnt { malo, .. } => malo.clone(),
-	}
-}
-
 pub fn reduce(
 	state: StammdatenState,
 	event: StammdatenEvent,
@@ -54,40 +49,78 @@ pub fn reduce(
 			})
 		}
 
-		// AenderungGesendet + AenderungBestaetigt -> AenderungBestaetigt
+		// AenderungGesendet + AenderungBestaetigt -> AenderungBestaetigt + confirmation to initiator
 		(
-			StammdatenState::AenderungGesendet { malo, .. },
+			StammdatenState::AenderungGesendet { malo, initiator, aenderungen },
 			StammdatenEvent::AenderungBestaetigt,
 		) => {
+			let nb = MarktpartnerId::new("9900000000010").expect("valid NB id");
+			let bestaetigung = Nachricht {
+				absender: nb,
+				absender_rolle: MarktRolle::Netzbetreiber,
+				empfaenger: initiator.clone(),
+				empfaenger_rolle: MarktRolle::Lieferant,
+				pruef_id: None,
+				payload: NachrichtenPayload::UtilmdStammdatenaenderung(
+					UtilmdStammdatenaenderung {
+						malo_id: malo.clone(),
+						initiator,
+						aenderungen,
+					},
+				),
+			};
 			Ok(ReducerOutput {
 				state: StammdatenState::AenderungBestaetigt { malo },
-				nachrichten: vec![],
+				nachrichten: vec![bestaetigung],
 			})
 		}
 
-		// AenderungGesendet + AenderungAbgelehnt -> Abgelehnt
+		// AenderungGesendet + AenderungAbgelehnt -> Abgelehnt + Ablehnung to initiator
 		(
-			StammdatenState::AenderungGesendet { malo, .. },
+			StammdatenState::AenderungGesendet { malo, initiator, .. },
 			StammdatenEvent::AenderungAbgelehnt { grund },
 		) => {
+			let nb = MarktpartnerId::new("9900000000010").expect("valid NB id");
+			let ablehnung = Nachricht {
+				absender: nb,
+				absender_rolle: MarktRolle::Netzbetreiber,
+				empfaenger: initiator,
+				empfaenger_rolle: MarktRolle::Lieferant,
+				pruef_id: None,
+				payload: NachrichtenPayload::UtilmdAblehnung(UtilmdAblehnung {
+					malo_id: malo.clone(),
+					grund: grund.clone(),
+				}),
+			};
 			Ok(ReducerOutput {
 				state: StammdatenState::Abgelehnt { malo, grund },
-				nachrichten: vec![],
+				nachrichten: vec![ablehnung],
 			})
 		}
 
-		// Timeout from AenderungGesendet
+		// Timeout from AenderungGesendet + Ablehnung to initiator
 		(
-			ref s @ StammdatenState::AenderungGesendet { .. },
+			StammdatenState::AenderungGesendet { malo, initiator, .. },
 			StammdatenEvent::FristUeberschritten,
 		) => {
-			let malo = malo_from_state(s);
+			let nb = MarktpartnerId::new("9900000000010").expect("valid NB id");
+			let ablehnung = Nachricht {
+				absender: nb,
+				absender_rolle: MarktRolle::Netzbetreiber,
+				empfaenger: initiator,
+				empfaenger_rolle: MarktRolle::Lieferant,
+				pruef_id: None,
+				payload: NachrichtenPayload::UtilmdAblehnung(UtilmdAblehnung {
+					malo_id: malo.clone(),
+					grund: AblehnungsGrund::Fristverletzung,
+				}),
+			};
 			Ok(ReducerOutput {
 				state: StammdatenState::Abgelehnt {
 					malo,
 					grund: AblehnungsGrund::Fristverletzung,
 				},
-				nachrichten: vec![],
+				nachrichten: vec![ablehnung],
 			})
 		}
 

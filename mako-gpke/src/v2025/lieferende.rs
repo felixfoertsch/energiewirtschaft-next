@@ -2,7 +2,7 @@ use chrono::NaiveDate;
 
 use mako_types::fehler::ProzessFehler;
 use mako_types::gpke_nachrichten::{
-	AblehnungsGrund, MsconsSchlussturnusmesswert, UtilmdLieferendeAbmeldung,
+	AblehnungsGrund, MsconsSchlussturnusmesswert, UtilmdAblehnung, UtilmdLieferendeAbmeldung,
 	UtilmdLieferendeBestaetigung,
 };
 use mako_types::ids::{MaLoId, MarktpartnerId};
@@ -40,16 +40,6 @@ pub enum LieferendeEvent {
 	SchlussturnusmesswertEmpfangen(MsconsSchlussturnusmesswert),
 	Abgelehnt { grund: AblehnungsGrund },
 	FristUeberschritten,
-}
-
-fn malo_from_state(state: &LieferendeState) -> MaLoId {
-	match state {
-		LieferendeState::Idle => unreachable!("Idle has no MaLoId"),
-		LieferendeState::AbmeldungGesendet { malo, .. }
-		| LieferendeState::Bestaetigt { malo, .. }
-		| LieferendeState::Abgeschlossen { malo, .. }
-		| LieferendeState::Abgelehnt { malo, .. } => malo.clone(),
-	}
 }
 
 pub fn reduce(
@@ -112,24 +102,58 @@ pub fn reduce(
 			})
 		}
 
-		// Rejection from AbmeldungGesendet
+		// Rejection from AbmeldungGesendet + Ablehnung to LF
 		(
-			LieferendeState::AbmeldungGesendet { malo, .. },
+			LieferendeState::AbmeldungGesendet { malo, lf, nb, .. },
 			LieferendeEvent::Abgelehnt { grund },
 		) => {
+			let ablehnung = Nachricht {
+				absender: nb,
+				absender_rolle: MarktRolle::Netzbetreiber,
+				empfaenger: lf,
+				empfaenger_rolle: MarktRolle::Lieferant,
+				pruef_id: None,
+				payload: NachrichtenPayload::UtilmdAblehnung(UtilmdAblehnung {
+					malo_id: malo.clone(),
+					grund: grund.clone(),
+				}),
+			};
 			Ok(ReducerOutput {
 				state: LieferendeState::Abgelehnt { malo, grund },
-				nachrichten: vec![],
+				nachrichten: vec![ablehnung],
 			})
 		}
 
-		// Timeout from any waiting state
+		// Timeout from AbmeldungGesendet + Ablehnung to LF
 		(
-			ref s @ (LieferendeState::AbmeldungGesendet { .. }
-			| LieferendeState::Bestaetigt { .. }),
+			LieferendeState::AbmeldungGesendet { malo, lf, nb, .. },
 			LieferendeEvent::FristUeberschritten,
 		) => {
-			let malo = malo_from_state(s);
+			let ablehnung = Nachricht {
+				absender: nb,
+				absender_rolle: MarktRolle::Netzbetreiber,
+				empfaenger: lf,
+				empfaenger_rolle: MarktRolle::Lieferant,
+				pruef_id: None,
+				payload: NachrichtenPayload::UtilmdAblehnung(UtilmdAblehnung {
+					malo_id: malo.clone(),
+					grund: AblehnungsGrund::Fristverletzung,
+				}),
+			};
+			Ok(ReducerOutput {
+				state: LieferendeState::Abgelehnt {
+					malo,
+					grund: AblehnungsGrund::Fristverletzung,
+				},
+				nachrichten: vec![ablehnung],
+			})
+		}
+
+		// Timeout from Bestaetigt (no routing info available for message)
+		(
+			LieferendeState::Bestaetigt { malo, .. },
+			LieferendeEvent::FristUeberschritten,
+		) => {
 			Ok(ReducerOutput {
 				state: LieferendeState::Abgelehnt {
 					malo,

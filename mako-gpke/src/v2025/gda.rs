@@ -1,6 +1,7 @@
 use mako_types::fehler::ProzessFehler;
 use mako_types::gpke_nachrichten::{
-	AblehnungsGrund, Stammdatenfeld, UtilmdGeschaeftsdatenanfrage, UtilmdGeschaeftsdatenantwort,
+	AblehnungsGrund, Stammdatenfeld, UtilmdAblehnung, UtilmdGeschaeftsdatenanfrage,
+	UtilmdGeschaeftsdatenantwort,
 };
 use mako_types::ids::{MaLoId, MarktpartnerId};
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
@@ -30,15 +31,6 @@ pub enum GdaEvent {
 	AntwortEmpfangen(UtilmdGeschaeftsdatenantwort),
 	Abgelehnt { grund: AblehnungsGrund },
 	FristUeberschritten,
-}
-
-fn malo_from_state(state: &GdaState) -> MaLoId {
-	match state {
-		GdaState::Idle => unreachable!("Idle has no MaLoId"),
-		GdaState::AnfrageGesendet { malo, .. }
-		| GdaState::Beantwortet { malo, .. }
-		| GdaState::Abgelehnt { malo, .. } => malo.clone(),
-	}
 }
 
 pub fn reduce(
@@ -85,29 +77,52 @@ pub fn reduce(
 			})
 		}
 
-		// Rejection from AnfrageGesendet
+		// Rejection from AnfrageGesendet + Ablehnung to anfragender
 		(
-			GdaState::AnfrageGesendet { malo, .. },
+			GdaState::AnfrageGesendet { malo, anfragender },
 			GdaEvent::Abgelehnt { grund },
 		) => {
+			let nb = MarktpartnerId::new("9900000000010").expect("valid NB id");
+			let ablehnung = Nachricht {
+				absender: nb,
+				absender_rolle: MarktRolle::Netzbetreiber,
+				empfaenger: anfragender,
+				empfaenger_rolle: MarktRolle::Lieferant,
+				pruef_id: None,
+				payload: NachrichtenPayload::UtilmdAblehnung(UtilmdAblehnung {
+					malo_id: malo.clone(),
+					grund: grund.clone(),
+				}),
+			};
 			Ok(ReducerOutput {
 				state: GdaState::Abgelehnt { malo, grund },
-				nachrichten: vec![],
+				nachrichten: vec![ablehnung],
 			})
 		}
 
-		// Timeout from AnfrageGesendet
+		// Timeout from AnfrageGesendet + Ablehnung to anfragender
 		(
-			ref s @ GdaState::AnfrageGesendet { .. },
+			GdaState::AnfrageGesendet { malo, anfragender },
 			GdaEvent::FristUeberschritten,
 		) => {
-			let malo = malo_from_state(s);
+			let nb = MarktpartnerId::new("9900000000010").expect("valid NB id");
+			let ablehnung = Nachricht {
+				absender: nb,
+				absender_rolle: MarktRolle::Netzbetreiber,
+				empfaenger: anfragender,
+				empfaenger_rolle: MarktRolle::Lieferant,
+				pruef_id: None,
+				payload: NachrichtenPayload::UtilmdAblehnung(UtilmdAblehnung {
+					malo_id: malo.clone(),
+					grund: AblehnungsGrund::Fristverletzung,
+				}),
+			};
 			Ok(ReducerOutput {
 				state: GdaState::Abgelehnt {
 					malo,
 					grund: AblehnungsGrund::Fristverletzung,
 				},
-				nachrichten: vec![],
+				nachrichten: vec![ablehnung],
 			})
 		}
 

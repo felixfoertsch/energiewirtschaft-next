@@ -2,7 +2,7 @@ use chrono::NaiveDate;
 
 use mako_types::fehler::ProzessFehler;
 use mako_types::gpke_nachrichten::{
-	AblehnungsGrund, UtilmdAbmeldung, UtilmdBestaetigung, UtilmdZuordnung,
+	AblehnungsGrund, UtilmdAbmeldung, UtilmdAblehnung, UtilmdBestaetigung, UtilmdZuordnung,
 };
 use mako_types::ids::{MaLoId, MarktpartnerId};
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
@@ -154,14 +154,25 @@ pub fn reduce(state: LfwState, event: LfwEvent) -> Result<ReducerOutput<LfwState
 			})
 		}
 
-		// 4. AbmeldungAnLfaGesendet + LfaHatAbgelehnt -> Abgelehnt
+		// 4. AbmeldungAnLfaGesendet + LfaHatAbgelehnt -> Abgelehnt + Ablehnung to LFN
 		(
-			LfwState::AbmeldungAnLfaGesendet { malo, .. },
+			LfwState::AbmeldungAnLfaGesendet { malo, lfn, nb, .. },
 			LfwEvent::LfaHatAbgelehnt { grund },
 		) => {
+			let ablehnung = Nachricht {
+				absender: nb,
+				absender_rolle: MarktRolle::Netzbetreiber,
+				empfaenger: lfn,
+				empfaenger_rolle: MarktRolle::LieferantNeu,
+				pruef_id: None,
+				payload: NachrichtenPayload::UtilmdAblehnung(UtilmdAblehnung {
+					malo_id: malo.clone(),
+					grund: grund.clone(),
+				}),
+			};
 			Ok(ReducerOutput {
 				state: LfwState::Abgelehnt { malo, grund },
-				nachrichten: vec![],
+				nachrichten: vec![ablehnung],
 			})
 		}
 
@@ -200,7 +211,7 @@ pub fn reduce(state: LfwState, event: LfwEvent) -> Result<ReducerOutput<LfwState
 			})
 		}
 
-		// 6. Any waiting state + FristUeberschritten -> Abgelehnt(Fristverletzung)
+		// 6. Any waiting state + FristUeberschritten -> Abgelehnt(Fristverletzung) + Ablehnung to LFN
 		(
 			ref s @ (LfwState::AnmeldungEingegangen { .. }
 			| LfwState::AbmeldungAnLfaGesendet { .. }
@@ -208,12 +219,29 @@ pub fn reduce(state: LfwState, event: LfwEvent) -> Result<ReducerOutput<LfwState
 			LfwEvent::FristUeberschritten,
 		) => {
 			let malo = malo_from_state(s);
+			let (lfn, nb) = match s {
+				LfwState::AnmeldungEingegangen { lfn, nb, .. }
+				| LfwState::AbmeldungAnLfaGesendet { lfn, nb, .. }
+				| LfwState::WiderspruchsfristLaeuft { lfn, nb, .. } => (lfn.clone(), nb.clone()),
+				_ => unreachable!(),
+			};
+			let ablehnung = Nachricht {
+				absender: nb,
+				absender_rolle: MarktRolle::Netzbetreiber,
+				empfaenger: lfn,
+				empfaenger_rolle: MarktRolle::LieferantNeu,
+				pruef_id: None,
+				payload: NachrichtenPayload::UtilmdAblehnung(UtilmdAblehnung {
+					malo_id: malo.clone(),
+					grund: AblehnungsGrund::Fristverletzung,
+				}),
+			};
 			Ok(ReducerOutput {
 				state: LfwState::Abgelehnt {
 					malo,
 					grund: AblehnungsGrund::Fristverletzung,
 				},
-				nachrichten: vec![],
+				nachrichten: vec![ablehnung],
 			})
 		}
 

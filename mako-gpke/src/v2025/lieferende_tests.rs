@@ -156,7 +156,11 @@ fn rejection_from_abmeldung_gesendet() {
 			grund: AblehnungsGrund::MaloUnbekannt,
 		}
 	);
-	assert!(out.nachrichten.is_empty());
+	assert_eq!(out.nachrichten.len(), 1);
+	let msg = &out.nachrichten[0];
+	assert_eq!(msg.absender, nb_id());
+	assert_eq!(msg.empfaenger, lf_id());
+	assert!(matches!(msg.payload, NachrichtenPayload::UtilmdAblehnung(_)));
 }
 
 // --- Timeout ---
@@ -178,6 +182,8 @@ fn timeout_from_abmeldung_gesendet() {
 			grund: AblehnungsGrund::Fristverletzung,
 		}
 	);
+	assert_eq!(out.nachrichten.len(), 1);
+	assert!(matches!(out.nachrichten[0].payload, NachrichtenPayload::UtilmdAblehnung(_)));
 }
 
 #[test]
