@@ -1,6 +1,8 @@
 use clap::{Parser, Subcommand};
 
+mod event_mapping;
 mod init;
+mod state_store;
 
 #[derive(Parser)]
 #[command(name = "mako", about = "MaKo-Simulator CLI")]
