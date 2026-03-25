@@ -148,6 +148,7 @@ export function App() {
 							box={selection.box}
 							datei={selection.datei}
 							onRolleSwitch={handleRolleChange}
+							onVerarbeitet={loadMessages}
 						/>
 					) : showForm ? (
 						<MessageForm

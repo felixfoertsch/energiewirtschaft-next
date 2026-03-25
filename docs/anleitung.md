@@ -336,4 +336,225 @@ Muss 566+ Tests gruen zeigen (39 Test-Suites). Bei Fehlern: der Build ist rot, d
 
 ---
 
-*Sektionen 7–9 (CLI, Simulation, UI) folgen nach Implementierung in Task 10.*
+## 7. Simulator bedienen
+
+### 7.1 CLI-Kommandos
+
+Der MaKo-Simulator wird über die Kommandozeile (`mako-cli`) und ein Web-UI (`mako-ui`) bedient. Die CLI ist das Fundament — sie verarbeitet Nachrichten, das Web-UI ist die grafische Oberfläche darüber.
+
+**Markt initialisieren:**
+
+```bash
+cargo build -p mako-cli
+cargo run -p mako-cli -- init markt/
+```
+
+Erzeugt `markt/` mit sechs Rollen-Verzeichnissen (je `inbox/`, `outbox/`, `state.json`), `rollen.json` und `log/`.
+
+**Nachricht verarbeiten:**
+
+```bash
+cargo run -p mako-cli -- verarbeite markt/netzbetreiber/inbox/001_UtilmdAnmeldung.json --markt markt
+```
+
+Pipeline: Datei lesen → CONTRL-Prüfung → APERAK-Prüfung → Reducer-Dispatch → ausgehende Nachrichten in `outbox/` schreiben → `.status.json` aktualisieren.
+
+**Nachricht senden (Rolle → Rolle):**
+
+```bash
+cargo run -p mako-cli -- sende lieferant_neu netzbetreiber 001_UtilmdAnmeldung.json --markt markt
+```
+
+Kopiert die Datei von `lieferant_neu/outbox/` nach `netzbetreiber/inbox/`, setzt `zugestellt`-Zeitstempel in `.status.json`.
+
+**Alle unverarbeiteten Nachrichten verarbeiten:**
+
+```bash
+cargo run -p mako-cli -- verarbeite-alle netzbetreiber --markt markt
+```
+
+**Status anzeigen:**
+
+```bash
+cargo run -p mako-cli -- status markt
+```
+
+Zeigt pro Rolle: Anzahl Inbox/Outbox-Nachrichten und aktive Prozesse mit aktuellem Zustand.
+
+### 7.2 Web-UI starten
+
+Das Web-UI besteht aus einem Express-Backend (Port 3001) und einem Vite-Frontend (Port 5173):
+
+```bash
+cd mako-ui
+bun install           # einmalig
+bun run server        # Terminal 1: Express-Backend
+bun run dev           # Terminal 2: Vite-Devserver
+```
+
+Dann im Browser http://localhost:5173 öffnen.
+
+### 7.3 UI-Aufbau
+
+Das UI hat drei Spalten und eine Fußleiste:
+
+| Bereich | Inhalt |
+|---------|--------|
+| **Links** | Aufgaben-Queue (offene Aktionen) + Prozessliste (nach Kategorie) |
+| **Mitte** | Inbox/Outbox der aktiven Rolle mit Nachrichtenkarten |
+| **Rechts** | Nachrichtendetail (JSON, EDIFACT, Status) oder Sendeformular |
+| **Unten** | Prozess-Timeline: alle Schritte mit Absender→Empfänger |
+
+**Rollen-Tabs:** Am oberen Rand. Jeder Tab zeigt den Rollennamen und ein Badge mit der Anzahl unverarbeiteter Inbox-Nachrichten.
+
+**Workflow:**
+1. Prozess in der linken Spalte auswählen (z.B. „Lieferantenwechsel")
+2. Rechte Spalte zeigt Sendeformular mit MaLo-ID und Schritt-Auswahl
+3. „Senden" schickt die Nachricht an den Empfänger
+4. Tab des Empfängers wechseln → Nachricht erscheint in der Inbox
+5. Nachricht anklicken → Detail-Ansicht mit „Verarbeiten"-Button
+6. Nach Verarbeitung: CONTRL/APERAK in Absender-Inbox, Folgenachrichten in Outbox
+
+### 7.4 GPKE Lieferantenwechsel — Schritt für Schritt
+
+1. Tab „Lieferant Neu" → Prozess „Lieferantenwechsel" → Senden: Anmeldung → NB
+2. Tab „Netzbetreiber" → Inbox: Anmeldung anklicken → „Verarbeiten"
+3. NB Outbox: Bestätigung + Abmeldung erscheinen
+4. „Senden" der Bestätigung → LFN, „Senden" der Abmeldung → LFA
+5. Tab „Lieferant Alt" → Inbox: Abmeldung verarbeiten
+6. Tab „Netzbetreiber" → Zuordnungen senden → LFN + LFA
+
+---
+
+## 8. Prozess-Referenz
+
+### 8.1 GPKE Lieferantenwechsel (Strom)
+
+| # | Schritt | Absender | Empfänger | Nachrichtentyp |
+|---|---------|----------|-----------|----------------|
+| 1 | Anmeldung | LFN | NB | UTILMD (UtilmdAnmeldung) |
+| 2 | Bestätigung | NB | LFN | UTILMD (UtilmdBestaetigung) |
+| 3 | Abmeldung an LFA | NB | LFA | UTILMD (UtilmdAbmeldung) |
+| 4 | Widerspruchsfrist | LFA | NB | (intern/Fristablauf) |
+| 5 | Zuordnung an LFN | NB | LFN | UTILMD (UtilmdZuordnung) |
+| 6 | Zuordnung an LFA | NB | LFA | UTILMD (UtilmdZuordnung) |
+
+### 8.2 GPKE Lieferende (Strom)
+
+| # | Schritt | Absender | Empfänger | Nachrichtentyp |
+|---|---------|----------|-----------|----------------|
+| 1 | Abmeldung | LFA | NB | UTILMD (UtilmdLieferendeAbmeldung) |
+| 2 | Bestätigung | NB | LFA | UTILMD (UtilmdLieferendeBestaetigung) |
+| 3 | Schlussturnusmesswert | MSB | NB | MSCONS |
+
+### 8.3 GPKE Stammdatenänderung
+
+| # | Schritt | Absender | Empfänger | Nachrichtentyp |
+|---|---------|----------|-----------|----------------|
+| 1 | Änderung senden | NB | LFN | UTILMD (UtilmdStammdatenaenderung) |
+| 2 | Bestätigung/Ablehnung | LFN | NB | UTILMD |
+
+### 8.4 GPKE Geschäftsdatenanfrage
+
+| # | Schritt | Absender | Empfänger | Nachrichtentyp |
+|---|---------|----------|-----------|----------------|
+| 1 | Anfrage | LFN | NB | UTILMD (UtilmdGeschaeftsdatenanfrage) |
+| 2 | Antwort | NB | LFN | UTILMD (UtilmdGeschaeftsdatenantwort) |
+
+### 8.5 WiM MSB-Wechsel
+
+| # | Schritt | Absender | Empfänger | Nachrichtentyp |
+|---|---------|----------|-----------|----------------|
+| 1 | Anmeldung MSB neu | MSB | NB | UTILMD (UtilmdMsbWechselAnmeldung) |
+| 2 | Abmeldung MSB alt | NB | MSB | UTILMD (UtilmdAbmeldung) |
+| 3 | Bestätigung | NB | MSB | UTILMD (UtilmdBestaetigung) |
+
+### 8.6 UBP Bestellung Messprodukt
+
+| # | Schritt | Absender | Empfänger | Nachrichtentyp |
+|---|---------|----------|-----------|----------------|
+| 1 | Angebotsanfrage | LFN | MSB | REQOTE |
+| 2 | Angebot | MSB | LFN | QUOTES |
+| 3 | Bestellung | LFN | MSB | ORDERS |
+| 4 | Bestellantwort | MSB | LFN | ORDRSP |
+
+### 8.7 MaBiS Bilanzkreiszuordnung
+
+| # | Schritt | Absender | Empfänger | Nachrichtentyp |
+|---|---------|----------|-----------|----------------|
+| 1 | Zuordnung | LFN | NB | UTILMD (UtilmdBilanzkreiszuordnung) |
+| 2 | Bestätigung | NB | LFN | UTILMD |
+
+### 8.8 Abrechnung Netznutzung
+
+| # | Schritt | Absender | Empfänger | Nachrichtentyp |
+|---|---------|----------|-----------|----------------|
+| 1 | Rechnung | NB | LFN | INVOIC |
+| 2 | Zahlungsavis | LFN | NB | REMADV |
+
+### 8.9 RD 2.0 Redispatch-Abruf
+
+| # | Schritt | Absender | Empfänger | Nachrichtentyp |
+|---|---------|----------|-----------|----------------|
+| 1 | Aktivierung | NB | LFN | XML (RdAktivierung) |
+| 2 | Quittierung | LFN | NB | XML (RdQuittung) |
+
+### 8.10 §14a Steuerung
+
+| # | Schritt | Absender | Empfänger | Nachrichtentyp |
+|---|---------|----------|-----------|----------------|
+| 1 | Anmeldung SVE | NB | MSB | UTILMD |
+| 2 | Steuersignal | NB | MSB | CLS |
+
+### 8.11 GeLi Gas Lieferantenwechsel
+
+Gleicher Ablauf wie GPKE LFW (Abschnitt 8.1), mit Gas-spezifischen Fristen (10WT/5WT/3WT) und Gastag-Bezug.
+
+### 8.12 GABi Gas Nominierung
+
+| # | Schritt | Absender | Empfänger | Nachrichtentyp |
+|---|---------|----------|-----------|----------------|
+| 1 | Nominierung | BKV | MGV | MSCONS |
+| 2 | Bestätigung | MGV | BKV | MSCONS |
+
+---
+
+## 9. Glossar
+
+| Abkürzung | Bedeutung |
+|-----------|-----------|
+| **MaLo** | Marktlokation — ein Entnahmepunkt im Stromnetz, identifiziert durch eine 11-stellige Nummer |
+| **MeLo** | Messlokation — ein physischer Zählerstandort, identifiziert durch eine 33-stellige Nummer |
+| **MP-ID** | Marktpartner-ID — 13-stellige Identifikationsnummer eines Marktteilnehmers (BDEW-Codenummer) |
+| **Sparte** | Strom oder Gas — bestimmt Fristen, Formate und Prozessvarianten |
+| **EDIFACT** | Electronic Data Interchange for Administration, Commerce and Transport — UN-Nachrichtenstandard für den B2B-Datenaustausch in der Energiewirtschaft |
+| **UTILMD** | Utility Master Data — EDIFACT-Nachrichtentyp für Stammdaten (An-/Abmeldung, Zuordnung, Geschäftsdatenanfrage) |
+| **MSCONS** | Metered Services Consumption — EDIFACT-Nachrichtentyp für Messwerte und Zeitreihen |
+| **INVOIC** | Invoice — EDIFACT-Nachrichtentyp für Rechnungen |
+| **REMADV** | Remittance Advice — EDIFACT-Nachrichtentyp für Zahlungsavise |
+| **ORDERS** | Purchase Order — EDIFACT-Nachrichtentyp für Bestellungen |
+| **ORDRSP** | Purchase Order Response — EDIFACT-Nachrichtentyp für Bestellantworten |
+| **REQOTE** | Request for Quote — EDIFACT-Nachrichtentyp für Angebotsanfragen |
+| **QUOTES** | Quote — EDIFACT-Nachrichtentyp für Angebote |
+| **CONTRL** | Syntaxkontrollnachricht — automatische Quittung auf EDIFACT-Ebene (Syntax ok/fehlerhaft) |
+| **APERAK** | Application Error and Acknowledgement — inhaltliche Quittung (Geschäftsregeln ok/verletzt) |
+| **Reducer** | `(State, Event) → (State, Vec<Nachricht>)` — pure Zustandsübergangsfunktion pro Kommunikationslinie |
+| **PID** | Prüfidentifikator — 5-stellige Nummer, identifiziert einen spezifischen EDIFACT-Nachrichteninhalt im AHB |
+| **AHB** | Anwendungshandbuch — beschreibt, welche Segmente/Datenelemente für einen PID-Wert zu befüllen sind |
+| **MIG** | Message Implementation Guide — technische Spezifikation eines EDIFACT-Nachrichtentyps |
+| **EBD** | Entscheidungsbaum-Diagramm — beschreibt die Geschäftslogik für Prüfschritte (z.B. „Anmeldung akzeptieren oder ablehnen") |
+| **GPKE** | Geschäftsprozesse zur Kundenbelieferung mit Elektrizität |
+| **GeLi Gas** | Geschäftsprozesse Lieferantenwechsel Gas |
+| **WiM** | Wechselprozesse im Messwesen |
+| **UBP** | Übermittlung von Bestellprodukten |
+| **MaBiS** | Marktregeln für die Durchführung der Bilanzkreisabrechnung Strom |
+| **GABi Gas** | Geschäftsabwicklung Bilanzierung Gas |
+| **KoV** | Kooperationsvereinbarung Gas |
+| **RD 2.0** | Redispatch 2.0 — Engpassmanagement im Stromnetz |
+| **LFN** | Lieferant Neu — der neue Stromlieferant in einem Wechselprozess |
+| **LFA** | Lieferant Alt — der bisherige Stromlieferant |
+| **NB** | Netzbetreiber — Verteilnetzbetreiber (VNB) |
+| **MSB** | Messstellenbetreiber — verantwortlich für Zähler und Messwerte |
+| **BKV** | Bilanzkreisverantwortlicher — verantwortlich für die Bilanzkreisabrechnung |
+| **MGV** | Marktgebietsverantwortlicher — verantwortlich für ein Gasmarktgebiet |
+| **FNB** | Fernleitungsnetzbetreiber — Betreiber des Gasfernleitungsnetzes |

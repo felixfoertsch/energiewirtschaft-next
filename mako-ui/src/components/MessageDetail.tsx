@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 import { StatusBadge } from "@/components/StatusBadge.tsx";
@@ -12,6 +13,7 @@ interface MessageDetailProps {
 	box: "inbox" | "outbox";
 	datei: string;
 	onRolleSwitch: (rolle: string) => void;
+	onVerarbeitet?: () => void;
 }
 
 interface DetailData {
@@ -20,10 +22,11 @@ interface DetailData {
 	edifact?: string;
 }
 
-export function MessageDetail({ rolle, box, datei, onRolleSwitch }: MessageDetailProps) {
+export function MessageDetail({ rolle, box, datei, onRolleSwitch, onVerarbeitet }: MessageDetailProps) {
 	const [data, setData] = useState<DetailData | null>(null);
 	const [showEdifact, setShowEdifact] = useState(false);
 	const [showJson, setShowJson] = useState(false);
+	const [verarbeitung, setVerarbeitung] = useState<string | null>(null);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -89,6 +92,33 @@ export function MessageDetail({ rolle, box, datei, onRolleSwitch }: MessageDetai
 						<p className="text-muted-foreground text-xs">
 							{new Date(meta.zeitpunkt).toLocaleString("de-DE")}
 						</p>
+					)}
+
+					{/* Verarbeiten button for inbox messages */}
+					{box === "inbox" && !meta.status.verarbeitet && (
+						<div>
+							<Button
+								size="sm"
+								onClick={async () => {
+									setVerarbeitung("läuft...");
+									try {
+										const result = await api.verarbeite(rolle, datei);
+										setVerarbeitung(result.ok ? "Verarbeitet" : "Fehler");
+										onVerarbeitet?.();
+									} catch (e) {
+										setVerarbeitung(`Fehler: ${e}`);
+									}
+								}}
+								disabled={verarbeitung === "läuft..."}
+							>
+								{verarbeitung === "läuft..." ? "Verarbeite..." : "Verarbeiten"}
+							</Button>
+							{verarbeitung && verarbeitung !== "läuft..." && (
+								<span className={`ml-2 text-xs ${verarbeitung === "Verarbeitet" ? "text-emerald-600" : "text-destructive"}`}>
+									{verarbeitung}
+								</span>
+							)}
+						</div>
 					)}
 
 					<Separator />
