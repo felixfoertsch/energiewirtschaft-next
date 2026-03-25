@@ -1,3 +1,4 @@
+pub mod fehler;
 pub mod fixtures;
 pub mod generator;
 pub mod ids;
