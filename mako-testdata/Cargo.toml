@@ -12,3 +12,4 @@ mako-wim = { path = "../mako-wim" }
 mako-mabis = { path = "../mako-mabis" }
 mako-geli = { path = "../mako-geli" }
 mako-codec = { path = "../mako-codec" }
+mako-quittung = { path = "../mako-quittung" }

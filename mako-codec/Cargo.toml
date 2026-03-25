@@ -9,6 +9,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 mako-types = { path = "../mako-types" }
+mako-quittung = { path = "../mako-quittung" }
 
 [dev-dependencies]
 mako-testdata = { path = "../mako-testdata" }
