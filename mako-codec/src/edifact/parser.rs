@@ -8,6 +8,9 @@ pub enum ParseError {
 	UnexpectedEnd,
 	InvalidSegment(String),
 	MissingSeparator,
+	MissingSegment(String),
+	InvalidQualifier(String),
+	InvalidDate(String),
 }
 
 impl fmt::Display for ParseError {
@@ -16,6 +19,9 @@ impl fmt::Display for ParseError {
 			ParseError::UnexpectedEnd => write!(f, "unexpected end of input"),
 			ParseError::InvalidSegment(s) => write!(f, "invalid segment: {s}"),
 			ParseError::MissingSeparator => write!(f, "missing separator"),
+			ParseError::MissingSegment(s) => write!(f, "missing required segment: {s}"),
+			ParseError::InvalidQualifier(s) => write!(f, "invalid qualifier: {s}"),
+			ParseError::InvalidDate(s) => write!(f, "invalid date: {s}"),
 		}
 	}
 }
