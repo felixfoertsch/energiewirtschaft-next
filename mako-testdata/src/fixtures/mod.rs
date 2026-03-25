@@ -1,2 +1,9 @@
+pub mod invoic;
 pub mod mscons;
+pub mod orders;
+pub mod ordrsp;
+pub mod pricat;
+pub mod quotes;
+pub mod remadv;
+pub mod reqote;
 pub mod utilmd;

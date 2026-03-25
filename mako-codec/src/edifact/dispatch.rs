@@ -1,7 +1,7 @@
 use chrono::{Datelike, NaiveDate, NaiveDateTime, Timelike};
 
 use mako_types::gpke_nachrichten::*;
-use mako_types::ids::{MaLoId, MarktpartnerId};
+use mako_types::ids::{MaLoId, MarktpartnerId, MeLoId};
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 use mako_types::pruefidentifikator::PruefIdentifikator;
 use mako_types::rolle::MarktRolle;
@@ -32,6 +32,13 @@ pub fn parse_nachricht(input: &str) -> Result<Nachricht, CodecFehler> {
 	match msg.typ.as_str() {
 		"UTILMD" => parse_utilmd(&interchange.sender, &interchange.empfaenger, segs),
 		"MSCONS" => parse_mscons(&interchange.sender, &interchange.empfaenger, segs),
+		"ORDERS" => parse_orders(segs),
+		"REQOTE" => parse_reqote(segs),
+		"QUOTES" => parse_quotes(segs),
+		"ORDRSP" => parse_ordrsp(segs),
+		"PRICAT" => parse_pricat(segs),
+		"INVOIC" => parse_invoic(segs),
+		"REMADV" => parse_remadv(segs),
 		other => Err(CodecFehler::UnbekannterNachrichtentyp {
 			typ: other.to_string(),
 		}),
@@ -68,6 +75,44 @@ pub fn serialize_nachricht(nachricht: &Nachricht) -> String {
 			serialize_mscons_zaehlerstand(nachricht, p)
 		}
 		NachrichtenPayload::MsconsLastgang(p) => serialize_mscons_lastgang(nachricht, p),
+		// WiM
+		NachrichtenPayload::UtilmdMsbWechselAnmeldung(p) => {
+			serialize_utilmd_msb_wechsel(nachricht, p)
+		}
+		NachrichtenPayload::UtilmdGeraetewechsel(p) => {
+			serialize_utilmd_geraetewechsel(nachricht, p)
+		}
+		NachrichtenPayload::OrdersWerteAnfrage(p) => {
+			serialize_orders_werte_anfrage(nachricht, p)
+		}
+		// UBP
+		NachrichtenPayload::ReqoteAngebotsanfrage(p) => {
+			serialize_reqote_angebotsanfrage(nachricht, p)
+		}
+		NachrichtenPayload::QuotesAngebot(p) => serialize_quotes_angebot(nachricht, p),
+		NachrichtenPayload::OrdersBestellung(p) => serialize_orders_bestellung(nachricht, p),
+		NachrichtenPayload::OrdrspBestellantwort(p) => {
+			serialize_ordrsp_bestellantwort(nachricht, p)
+		}
+		NachrichtenPayload::PricatPreisblatt(p) => serialize_pricat_preisblatt(nachricht, p),
+		// MaBiS
+		NachrichtenPayload::UtilmdBilanzkreiszuordnung(p) => {
+			serialize_utilmd_bilanzkreiszuordnung(nachricht, p)
+		}
+		NachrichtenPayload::MsconsAggregierteZeitreihen(p) => {
+			serialize_mscons_aggregierte_zeitreihen(nachricht, p)
+		}
+		NachrichtenPayload::MsconsMehrMindermengen(p) => {
+			serialize_mscons_mehr_mindermengen(nachricht, p)
+		}
+		NachrichtenPayload::UtilmdClearingliste(p) => {
+			serialize_utilmd_clearingliste(nachricht, p)
+		}
+		// Abrechnung
+		NachrichtenPayload::InvoicRechnung(p) => serialize_invoic_rechnung(nachricht, p),
+		NachrichtenPayload::RemadvZahlungsavis(p) => {
+			serialize_remadv_zahlungsavis(nachricht, p)
+		}
 		_ => unimplemented!("serialize_nachricht: payload type not yet supported"),
 	}
 }
@@ -132,29 +177,75 @@ fn parse_utilmd(
 		};
 	}
 
+	// Check for bilanzkreis (RFF+Z06) — MaBiS Bilanzkreiszuordnung
+	let has_bk = find_qualified_segment(segs, "RFF", "Z06").is_ok();
+
+	// Check for IDE with MeLoId (33 chars, starts with "DE") — WiM
+	let ide_value = find_qualified_segment(segs, "IDE", "24")
+		.ok()
+		.and_then(|ide| ide.elements.get(1))
+		.and_then(|e| e.components.first())
+		.cloned()
+		.unwrap_or_default();
+	let has_melo = ide_value.len() == 33 && ide_value.starts_with("DE");
+
+	// Check for CCI+Z30 pairs (Geraetewechsel)
+	let has_cci_z30 = segs.iter().any(|s| {
+		s.tag == "CCI"
+			&& s.elements
+				.first()
+				.and_then(|e| e.components.first())
+				.is_some_and(|q| q == "Z30")
+	});
+
+	// Check for CCI+CLEARING (Clearingliste)
+	let has_clearing = segs.iter().any(|s| {
+		s.tag == "CCI"
+			&& s.elements
+				.first()
+				.and_then(|e| e.components.first())
+				.is_some_and(|q| q == "CLEARING")
+	});
+
 	// Fallback: BGM qualifier + heuristics
 	match qualifier.as_str() {
 		"E01" => {
-			// E01 without PID = LieferendeBestaetigung
-			parse_utilmd_lieferende_bestaetigung(unb_sender, unb_empfaenger, segs)
-		}
-		"E03" => parse_utilmd_stammdatenaenderung(unb_sender, unb_empfaenger, segs, None),
-		"E06" => {
-			// E06 with multiple IDE+24 = Zuordnungsliste, otherwise Zuordnung
-			let ide_count = segs
-				.iter()
-				.filter(|s| {
-					s.tag == "IDE"
-						&& s.elements
-							.first()
-							.and_then(|e| e.components.first())
-							.is_some_and(|q| q == "24")
-				})
-				.count();
-			if ide_count > 1 {
-				parse_utilmd_zuordnungsliste(unb_sender, unb_empfaenger, segs)
+			if has_bk {
+				parse_utilmd_bilanzkreiszuordnung(segs)
 			} else {
-				parse_utilmd_zuordnung(unb_sender, unb_empfaenger, segs, None)
+				// E01 without PID = LieferendeBestaetigung
+				parse_utilmd_lieferende_bestaetigung(unb_sender, unb_empfaenger, segs)
+			}
+		}
+		"E03" => {
+			if has_cci_z30 {
+				parse_utilmd_geraetewechsel(segs)
+			} else if has_melo {
+				parse_utilmd_msb_wechsel(segs)
+			} else {
+				parse_utilmd_stammdatenaenderung(unb_sender, unb_empfaenger, segs, None)
+			}
+		}
+		"E06" => {
+			if has_clearing {
+				parse_utilmd_clearingliste(segs)
+			} else {
+				// E06 with multiple IDE+24 = Zuordnungsliste, otherwise Zuordnung
+				let ide_count = segs
+					.iter()
+					.filter(|s| {
+						s.tag == "IDE"
+							&& s.elements
+								.first()
+								.and_then(|e| e.components.first())
+								.is_some_and(|q| q == "24")
+					})
+					.count();
+				if ide_count > 1 {
+					parse_utilmd_zuordnungsliste(unb_sender, unb_empfaenger, segs)
+				} else {
+					parse_utilmd_zuordnung(unb_sender, unb_empfaenger, segs, None)
+				}
 			}
 		}
 		"E09" => {
@@ -602,9 +693,38 @@ fn parse_mscons(
 		Some(other) => Err(CodecFehler::UnbekannterNachrichtentyp {
 			typ: format!("MSCONS/PID:{}", other.code()),
 		}),
-		None => Err(CodecFehler::SegmentFehlt {
-			erwartet: "RFF+Z13".to_string(),
-		}),
+		None => {
+			// No PID: use heuristics. Check for bilanzkreis (RFF+Z06)
+			let has_bk = find_qualified_segment(segs, "RFF", "Z06").is_ok();
+			// Check for two QTY segments with different qualifiers (mehr/minder)
+			let qty_46_count = segs
+				.iter()
+				.filter(|s| {
+					s.tag == "QTY"
+						&& s.elements
+							.first()
+							.and_then(|e| e.components.first())
+							.is_some_and(|q| q == "46")
+				})
+				.count();
+			let has_qty_47 = segs.iter().any(|s| {
+				s.tag == "QTY"
+					&& s.elements
+						.first()
+						.and_then(|e| e.components.first())
+						.is_some_and(|q| q == "47")
+			});
+
+			if has_bk {
+				parse_mscons_aggregierte_zeitreihen(segs, absender, empfaenger)
+			} else if qty_46_count > 0 && has_qty_47 {
+				parse_mscons_mehr_mindermengen(segs, absender, empfaenger)
+			} else {
+				Err(CodecFehler::SegmentFehlt {
+					erwartet: "RFF+Z13".to_string(),
+				})
+			}
+		}
 	}
 }
 
@@ -1069,6 +1189,1167 @@ fn serialize_mscons_lastgang(nachricht: &Nachricht, p: &MsconsLastgang) -> Strin
 }
 
 // ---------------------------------------------------------------------------
+// WiM UTILMD parsers
+// ---------------------------------------------------------------------------
+
+fn parse_utilmd_msb_wechsel(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+	let melo_id = extract_melo_id(segs)?;
+	let wechseldatum = extract_date(segs, "92")?;
+
+	Ok(Nachricht {
+		absender: absender.clone(),
+		absender_rolle: MarktRolle::Messstellenbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Netzbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdMsbWechselAnmeldung(UtilmdMsbWechselAnmeldung {
+			melo_id,
+			msb_neu: absender,
+			wechseldatum,
+		}),
+	})
+}
+
+fn parse_utilmd_geraetewechsel(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+	let melo_id = extract_melo_id(segs)?;
+	let wechseldatum = extract_date(segs, "92")?;
+
+	// Extract two CCI+Z30 / CAV pairs for device numbers
+	let mut geraete_nrs = Vec::new();
+	let mut i = 0;
+	while i < segs.len() {
+		if segs[i].tag == "CCI"
+			&& segs[i]
+				.elements
+				.first()
+				.and_then(|e| e.components.first())
+				.is_some_and(|q| q == "Z30")
+		{
+			let nr = if i + 1 < segs.len() && segs[i + 1].tag == "CAV" {
+				segs[i + 1]
+					.elements
+					.first()
+					.and_then(|e| e.components.first())
+					.cloned()
+					.unwrap_or_default()
+			} else {
+				String::new()
+			};
+			geraete_nrs.push(nr);
+			i += 2;
+			continue;
+		}
+		i += 1;
+	}
+
+	let alte_geraete_nr = geraete_nrs.first().cloned().unwrap_or_default();
+	let neue_geraete_nr = geraete_nrs.get(1).cloned().unwrap_or_default();
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Messstellenbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Netzbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdGeraetewechsel(UtilmdGeraetewechsel {
+			melo_id,
+			alte_geraete_nr,
+			neue_geraete_nr,
+			wechseldatum,
+		}),
+	})
+}
+
+// ---------------------------------------------------------------------------
+// MaBiS UTILMD parsers
+// ---------------------------------------------------------------------------
+
+fn parse_utilmd_bilanzkreiszuordnung(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+	let malo_id = extract_malo_id(segs)?;
+	let gueltig_ab = extract_date(segs, "92")?;
+
+	let bk_seg = find_qualified_segment(segs, "RFF", "Z06")?;
+	let bilanzkreis = bk_seg
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.cloned()
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "RFF+Z06".to_string(),
+			feld: "bilanzkreis".to_string(),
+		})?;
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Lieferant,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Netzbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdBilanzkreiszuordnung(UtilmdBilanzkreiszuordnung {
+			malo_id,
+			bilanzkreis,
+			gueltig_ab,
+		}),
+	})
+}
+
+fn parse_utilmd_clearingliste(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+
+	// Collect CCI+CLEARING / CAV groups: each group has malo_id, feld, nb_wert, lf_wert
+	let mut eintraege = Vec::new();
+	let mut i = 0;
+	while i < segs.len() {
+		if segs[i].tag == "CCI"
+			&& segs[i]
+				.elements
+				.first()
+				.and_then(|e| e.components.first())
+				.is_some_and(|q| q == "CLEARING")
+		{
+			// Components: CLEARING:malo:feld
+			let comps = &segs[i]
+				.elements
+				.first()
+				.map(|e| e.components.clone())
+				.unwrap_or_default();
+			let malo_str = comps.get(1).cloned().unwrap_or_default();
+			let feld = comps.get(2).cloned().unwrap_or_default();
+			let malo_id = MaLoId::new(&malo_str).map_err(|_| CodecFehler::UngueltigerWert {
+				segment: "CCI+CLEARING".to_string(),
+				feld: "MaLo-ID".to_string(),
+				wert: malo_str,
+			})?;
+
+			// CAV has nb_wert:lf_wert
+			let (nb_wert, lf_wert) = if i + 1 < segs.len() && segs[i + 1].tag == "CAV" {
+				let cav_comps = &segs[i + 1]
+					.elements
+					.first()
+					.map(|e| e.components.clone())
+					.unwrap_or_default();
+				let nb = cav_comps.first().cloned().unwrap_or_default();
+				let lf = cav_comps.get(1).cloned();
+				(nb, lf)
+			} else {
+				(String::new(), None)
+			};
+
+			eintraege.push(ClearingEintrag {
+				malo_id,
+				feld,
+				nb_wert,
+				lf_wert,
+			});
+			i += 2;
+			continue;
+		}
+		i += 1;
+	}
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Lieferant,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdClearingliste(UtilmdClearingliste { eintraege }),
+	})
+}
+
+// ---------------------------------------------------------------------------
+// WiM UTILMD serializers
+// ---------------------------------------------------------------------------
+
+fn serialize_utilmd_msb_wechsel(
+	nachricht: &Nachricht,
+	p: &UtilmdMsbWechselAnmeldung,
+) -> String {
+	let segmente = vec![
+		bgm_segment("E03"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		ide_segment(p.melo_id.as_str()),
+		dtm_date_segment("92", &p.wechseldatum),
+	];
+	wrap_utilmd(nachricht, segmente)
+}
+
+fn serialize_utilmd_geraetewechsel(
+	nachricht: &Nachricht,
+	p: &UtilmdGeraetewechsel,
+) -> String {
+	let mut segmente = vec![
+		bgm_segment("E03"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		ide_segment(p.melo_id.as_str()),
+		dtm_date_segment("92", &p.wechseldatum),
+	];
+	// Two CCI+Z30 / CAV pairs for old and new device
+	segmente.push(Segment {
+		tag: "CCI".to_string(),
+		elements: vec![Element {
+			components: vec!["Z30".to_string()],
+		}],
+	});
+	segmente.push(Segment {
+		tag: "CAV".to_string(),
+		elements: vec![Element {
+			components: vec![p.alte_geraete_nr.clone()],
+		}],
+	});
+	segmente.push(Segment {
+		tag: "CCI".to_string(),
+		elements: vec![Element {
+			components: vec!["Z30".to_string()],
+		}],
+	});
+	segmente.push(Segment {
+		tag: "CAV".to_string(),
+		elements: vec![Element {
+			components: vec![p.neue_geraete_nr.clone()],
+		}],
+	});
+	wrap_utilmd(nachricht, segmente)
+}
+
+// ---------------------------------------------------------------------------
+// MaBiS UTILMD serializers
+// ---------------------------------------------------------------------------
+
+fn serialize_utilmd_bilanzkreiszuordnung(
+	nachricht: &Nachricht,
+	p: &UtilmdBilanzkreiszuordnung,
+) -> String {
+	let segmente = vec![
+		bgm_segment("E01"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		ide_segment(p.malo_id.as_str()),
+		dtm_date_segment("92", &p.gueltig_ab),
+		rff_segment("Z06", &p.bilanzkreis),
+	];
+	wrap_utilmd(nachricht, segmente)
+}
+
+fn serialize_utilmd_clearingliste(
+	nachricht: &Nachricht,
+	p: &UtilmdClearingliste,
+) -> String {
+	let mut segmente = vec![
+		bgm_segment("E06"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+	];
+	for eintrag in &p.eintraege {
+		segmente.push(Segment {
+			tag: "CCI".to_string(),
+			elements: vec![Element {
+				components: vec![
+					"CLEARING".to_string(),
+					eintrag.malo_id.as_str().to_string(),
+					eintrag.feld.clone(),
+				],
+			}],
+		});
+		let mut cav_comps = vec![eintrag.nb_wert.clone()];
+		if let Some(ref lf) = eintrag.lf_wert {
+			cav_comps.push(lf.clone());
+		}
+		segmente.push(Segment {
+			tag: "CAV".to_string(),
+			elements: vec![Element {
+				components: cav_comps,
+			}],
+		});
+	}
+	wrap_utilmd(nachricht, segmente)
+}
+
+// ---------------------------------------------------------------------------
+// ORDERS dispatcher + parsers
+// ---------------------------------------------------------------------------
+
+fn parse_orders(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+
+	// Distinguish WerteAnfrage (has DTM+163/164 period) vs Bestellung (has RFF+ON)
+	let has_period = find_qualified_segment(segs, "DTM", "163").is_ok();
+	let has_rff_on = find_qualified_segment(segs, "RFF", "ON").is_ok();
+
+	if has_rff_on {
+		parse_orders_bestellung(segs, absender, empfaenger)
+	} else if has_period {
+		parse_orders_werte_anfrage(segs, absender, empfaenger)
+	} else {
+		Err(CodecFehler::UnbekannterNachrichtentyp {
+			typ: "ORDERS (cannot disambiguate)".to_string(),
+		})
+	}
+}
+
+fn parse_orders_werte_anfrage(
+	segs: &[Segment],
+	absender: MarktpartnerId,
+	empfaenger: MarktpartnerId,
+) -> Result<Nachricht, CodecFehler> {
+	let malo_id = extract_malo_id(segs)?;
+	let zeitraum_von = extract_date(segs, "163")?;
+	let zeitraum_bis = extract_date(segs, "164")?;
+
+	Ok(Nachricht {
+		absender: absender.clone(),
+		absender_rolle: MarktRolle::Lieferant,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Messstellenbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::OrdersWerteAnfrage(OrdersWerteAnfrage {
+			malo_id,
+			anfragender: absender,
+			zeitraum_von,
+			zeitraum_bis,
+		}),
+	})
+}
+
+fn parse_orders_bestellung(
+	segs: &[Segment],
+	absender: MarktpartnerId,
+	empfaenger: MarktpartnerId,
+) -> Result<Nachricht, CodecFehler> {
+	let melo_id = extract_melo_id(segs)?;
+	let rff_on = find_qualified_segment(segs, "RFF", "ON")?;
+	let referenz = rff_on
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.cloned()
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "RFF+ON".to_string(),
+			feld: "referenz".to_string(),
+		})?;
+
+	Ok(Nachricht {
+		absender: absender.clone(),
+		absender_rolle: MarktRolle::Lieferant,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Messstellenbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::OrdersBestellung(OrdersBestellung {
+			melo_id,
+			besteller: absender,
+			referenz_angebot: referenz,
+		}),
+	})
+}
+
+// ---------------------------------------------------------------------------
+// ORDERS serializers
+// ---------------------------------------------------------------------------
+
+fn serialize_orders_werte_anfrage(nachricht: &Nachricht, p: &OrdersWerteAnfrage) -> String {
+	let segmente = vec![
+		bgm_segment("Z08"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		ide_segment(p.malo_id.as_str()),
+		dtm_date_segment("163", &p.zeitraum_von),
+		dtm_date_segment("164", &p.zeitraum_bis),
+	];
+	wrap_edifact(nachricht, "ORDERS", "D:01B:UN:1.4b", segmente)
+}
+
+fn serialize_orders_bestellung(nachricht: &Nachricht, p: &OrdersBestellung) -> String {
+	let segmente = vec![
+		bgm_segment("Z08"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		ide_segment(p.melo_id.as_str()),
+		rff_segment("ON", &p.referenz_angebot),
+	];
+	wrap_edifact(nachricht, "ORDERS", "D:01B:UN:1.4b", segmente)
+}
+
+// ---------------------------------------------------------------------------
+// REQOTE parser + serializer
+// ---------------------------------------------------------------------------
+
+fn parse_reqote(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+	let melo_id = extract_melo_id(segs)?;
+
+	let imd = find_segment(segs, "IMD")?;
+	let produkt = imd
+		.elements
+		.get(2)
+		.and_then(|e| e.components.get(3))
+		.cloned()
+		.unwrap_or_default();
+
+	Ok(Nachricht {
+		absender: absender.clone(),
+		absender_rolle: MarktRolle::Lieferant,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Messstellenbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::ReqoteAngebotsanfrage(ReqoteAngebotsanfrage {
+			melo_id,
+			anfragender: absender,
+			produkt_beschreibung: produkt,
+		}),
+	})
+}
+
+fn serialize_reqote_angebotsanfrage(
+	nachricht: &Nachricht,
+	p: &ReqoteAngebotsanfrage,
+) -> String {
+	let segmente = vec![
+		bgm_segment("Z08"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		ide_segment(p.melo_id.as_str()),
+		imd_segment(&p.produkt_beschreibung),
+	];
+	wrap_edifact(nachricht, "REQOTE", "D:01B:UN:1.3c", segmente)
+}
+
+// ---------------------------------------------------------------------------
+// QUOTES parser + serializer
+// ---------------------------------------------------------------------------
+
+fn parse_quotes(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+	let melo_id = extract_melo_id(segs)?;
+
+	let imd = find_segment(segs, "IMD")?;
+	let produkt = imd
+		.elements
+		.get(2)
+		.and_then(|e| e.components.get(3))
+		.cloned()
+		.unwrap_or_default();
+
+	let moa = find_qualified_segment(segs, "MOA", "9")?;
+	let preis_str = moa
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "MOA+9".to_string(),
+			feld: "preis_ct".to_string(),
+		})?;
+	let preis_ct = preis_str
+		.parse::<f64>()
+		.map_err(|_| CodecFehler::UngueltigerWert {
+			segment: "MOA+9".to_string(),
+			feld: "preis_ct".to_string(),
+			wert: preis_str.clone(),
+		})?;
+
+	Ok(Nachricht {
+		absender: absender.clone(),
+		absender_rolle: MarktRolle::Messstellenbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Lieferant,
+		pruef_id: None,
+		payload: NachrichtenPayload::QuotesAngebot(QuotesAngebot {
+			melo_id,
+			anbieter: absender,
+			preis_ct_pro_monat: preis_ct,
+			produkt_beschreibung: produkt,
+		}),
+	})
+}
+
+fn serialize_quotes_angebot(nachricht: &Nachricht, p: &QuotesAngebot) -> String {
+	let segmente = vec![
+		bgm_segment("Z09"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		ide_segment(p.melo_id.as_str()),
+		imd_segment(&p.produkt_beschreibung),
+		moa_segment("9", p.preis_ct_pro_monat),
+	];
+	wrap_edifact(nachricht, "QUOTES", "D:01B:UN:1.3b", segmente)
+}
+
+// ---------------------------------------------------------------------------
+// ORDRSP parser + serializer
+// ---------------------------------------------------------------------------
+
+fn parse_ordrsp(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+	let melo_id = extract_melo_id(segs)?;
+
+	// STS+7++{code} has 3 elements: ["7"], [], [code]
+	let sts = find_qualified_segment(segs, "STS", "7")?;
+	let status_code = sts
+		.elements
+		.get(2)
+		.and_then(|e| e.components.first())
+		.cloned()
+		.unwrap_or_default();
+	let angenommen = status_code == "Z06";
+
+	// FTX+AAO+++{text} has 3 elements: ["AAO"], [], [text]
+	let grund = find_qualified_segment(segs, "FTX", "AAO")
+		.ok()
+		.and_then(|ftx| ftx.elements.get(2))
+		.and_then(|e| e.components.first())
+		.cloned();
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Messstellenbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Lieferant,
+		pruef_id: None,
+		payload: NachrichtenPayload::OrdrspBestellantwort(OrdrspBestellantwort {
+			melo_id,
+			angenommen,
+			grund,
+		}),
+	})
+}
+
+fn serialize_ordrsp_bestellantwort(nachricht: &Nachricht, p: &OrdrspBestellantwort) -> String {
+	let status_code = if p.angenommen { "Z06" } else { "Z08" };
+	let mut segmente = vec![
+		bgm_segment("Z09"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		ide_segment(p.melo_id.as_str()),
+		sts_segment("7", status_code),
+	];
+	if let Some(ref grund) = p.grund {
+		segmente.push(ftx_segment("AAO", grund));
+	}
+	wrap_edifact(nachricht, "ORDRSP", "D:01B:UN:1.4a", segmente)
+}
+
+// ---------------------------------------------------------------------------
+// PRICAT parser + serializer
+// ---------------------------------------------------------------------------
+
+fn parse_pricat(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	// PRICAT may not have NAD+MR in all cases, use empfaenger if present
+	let empfaenger = extract_mp_id(segs, "MR").unwrap_or_else(|_| absender.clone());
+	let gueltig_ab = extract_date(segs, "157")?;
+
+	// Collect LIN+PRI+MEA triples
+	let mut positionen = Vec::new();
+	let mut i = 0;
+	while i < segs.len() {
+		if segs[i].tag == "LIN" {
+			let bezeichnung = segs[i]
+				.elements
+				.get(2)
+				.and_then(|e| e.components.first())
+				.cloned()
+				.unwrap_or_default();
+
+			let mut preis_ct = 0.0;
+			let mut einheit = String::new();
+
+			// Look for PRI and MEA after this LIN
+			for j in (i + 1)..segs.len() {
+				if segs[j].tag == "LIN" {
+					break;
+				}
+				if segs[j].tag == "PRI" {
+					preis_ct = segs[j]
+						.elements
+						.first()
+						.and_then(|e| e.components.get(1))
+						.and_then(|s| s.parse::<f64>().ok())
+						.unwrap_or(0.0);
+				}
+				if segs[j].tag == "MEA" {
+					einheit = segs[j]
+						.elements
+						.get(2)
+						.and_then(|e| e.components.first())
+						.cloned()
+						.unwrap_or_default();
+				}
+			}
+
+			positionen.push(PreisPosition {
+				bezeichnung,
+				preis_ct,
+				einheit,
+			});
+		}
+		i += 1;
+	}
+
+	Ok(Nachricht {
+		absender: absender.clone(),
+		absender_rolle: MarktRolle::Messstellenbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Lieferant,
+		pruef_id: None,
+		payload: NachrichtenPayload::PricatPreisblatt(PricatPreisblatt {
+			herausgeber: absender,
+			gueltig_ab,
+			positionen,
+		}),
+	})
+}
+
+fn serialize_pricat_preisblatt(nachricht: &Nachricht, p: &PricatPreisblatt) -> String {
+	let mut segmente = vec![
+		bgm_segment("Z33"),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		dtm_date_segment("157", &p.gueltig_ab),
+	];
+	for (idx, pos) in p.positionen.iter().enumerate() {
+		segmente.push(lin_segment(idx + 1, &pos.bezeichnung));
+		segmente.push(pri_segment(pos.preis_ct));
+		segmente.push(mea_segment(&pos.einheit));
+	}
+	wrap_edifact(nachricht, "PRICAT", "D:01B:UN:2.0e", segmente)
+}
+
+// ---------------------------------------------------------------------------
+// MaBiS MSCONS parsers
+// ---------------------------------------------------------------------------
+
+fn parse_mscons_aggregierte_zeitreihen(
+	segs: &[Segment],
+	absender: MarktpartnerId,
+	empfaenger: MarktpartnerId,
+) -> Result<Nachricht, CodecFehler> {
+	let bk_seg = find_qualified_segment(segs, "RFF", "Z06")?;
+	let bilanzkreis = bk_seg
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.cloned()
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "RFF+Z06".to_string(),
+			feld: "bilanzkreis".to_string(),
+		})?;
+
+	// Extract ZeitreihenTyp from STS+7++{code}
+	let typ = find_qualified_segment(segs, "STS", "7")
+		.ok()
+		.and_then(|sts| sts.elements.get(2))
+		.and_then(|e| e.components.first())
+		.map(|s| match s.as_str() {
+			"SLP" => ZeitreihenTyp::SlpSynthese,
+			"RLM" => ZeitreihenTyp::RlmLastgang,
+			"SUM" => ZeitreihenTyp::Summenzeitreihe,
+			"FPL" => ZeitreihenTyp::Fahrplan,
+			_ => ZeitreihenTyp::Summenzeitreihe,
+		})
+		.unwrap_or(ZeitreihenTyp::Summenzeitreihe);
+
+	// Collect QTY+DTM pairs
+	let mut zeitreihen = Vec::new();
+	let mut i = 0;
+	while i < segs.len() {
+		if segs[i].tag == "QTY"
+			&& segs[i]
+				.elements
+				.first()
+				.and_then(|e| e.components.first())
+				.is_some_and(|q| q == "220")
+		{
+			let wert_str = segs[i]
+				.elements
+				.first()
+				.and_then(|e| e.components.get(1))
+				.ok_or(CodecFehler::FeldFehlt {
+					segment: "QTY+220".to_string(),
+					feld: "wert".to_string(),
+				})?;
+			let wert = wert_str
+				.parse::<f64>()
+				.map_err(|_| CodecFehler::UngueltigerWert {
+					segment: "QTY+220".to_string(),
+					feld: "wert".to_string(),
+					wert: wert_str.clone(),
+				})?;
+			let einheit = extract_einheit_from_qty(&segs[i]);
+
+			// Look for DTM+163 after this QTY
+			let zeitpunkt = if i + 1 < segs.len()
+				&& segs[i + 1].tag == "DTM"
+				&& segs[i + 1]
+					.elements
+					.first()
+					.and_then(|e| e.components.first())
+					.is_some_and(|q| q == "163")
+			{
+				let ts_str = segs[i + 1]
+					.elements
+					.first()
+					.and_then(|e| e.components.get(1))
+					.ok_or(CodecFehler::FeldFehlt {
+						segment: "DTM+163".to_string(),
+						feld: "zeitpunkt".to_string(),
+					})?;
+				parse_datetime(ts_str)?
+			} else {
+				return Err(CodecFehler::SegmentFehlt {
+					erwartet: "DTM+163 after QTY".to_string(),
+				});
+			};
+
+			zeitreihen.push(Messwert {
+				zeitpunkt,
+				wert,
+				einheit,
+				status: MesswertStatus::Gemessen,
+			});
+			i += 2;
+			continue;
+		}
+		i += 1;
+	}
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Bilanzkreisverantwortlicher,
+		pruef_id: None,
+		payload: NachrichtenPayload::MsconsAggregierteZeitreihen(MsconsAggregierteZeitreihen {
+			bilanzkreis,
+			zeitreihen,
+			typ,
+		}),
+	})
+}
+
+fn parse_mscons_mehr_mindermengen(
+	segs: &[Segment],
+	absender: MarktpartnerId,
+	empfaenger: MarktpartnerId,
+) -> Result<Nachricht, CodecFehler> {
+	let malo_id = extract_malo_from_loc_or_nad_dp(segs)?;
+
+	// QTY+46 = Mehrmenge, QTY+47 = Mindermenge
+	let qty_mehr = find_qualified_segment(segs, "QTY", "46")?;
+	let mehr_str = qty_mehr
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "QTY+46".to_string(),
+			feld: "mehrmenge".to_string(),
+		})?;
+	let mehrmenge_kwh = mehr_str
+		.parse::<f64>()
+		.map_err(|_| CodecFehler::UngueltigerWert {
+			segment: "QTY+46".to_string(),
+			feld: "mehrmenge".to_string(),
+			wert: mehr_str.clone(),
+		})?;
+
+	let qty_minder = find_qualified_segment(segs, "QTY", "47")?;
+	let minder_str = qty_minder
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "QTY+47".to_string(),
+			feld: "mindermenge".to_string(),
+		})?;
+	let mindermenge_kwh = minder_str
+		.parse::<f64>()
+		.map_err(|_| CodecFehler::UngueltigerWert {
+			segment: "QTY+47".to_string(),
+			feld: "mindermenge".to_string(),
+			wert: minder_str.clone(),
+		})?;
+
+	let abrechnungszeitraum_von = extract_date(segs, "163")?;
+	let abrechnungszeitraum_bis = extract_date(segs, "164")?;
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Lieferant,
+		pruef_id: None,
+		payload: NachrichtenPayload::MsconsMehrMindermengen(MsconsMehrMindermengen {
+			malo_id,
+			mehrmenge_kwh,
+			mindermenge_kwh,
+			abrechnungszeitraum_von,
+			abrechnungszeitraum_bis,
+		}),
+	})
+}
+
+// ---------------------------------------------------------------------------
+// MaBiS MSCONS serializers
+// ---------------------------------------------------------------------------
+
+fn serialize_mscons_aggregierte_zeitreihen(
+	nachricht: &Nachricht,
+	p: &MsconsAggregierteZeitreihen,
+) -> String {
+	let typ_code = match p.typ {
+		ZeitreihenTyp::SlpSynthese => "SLP",
+		ZeitreihenTyp::RlmLastgang => "RLM",
+		ZeitreihenTyp::Summenzeitreihe => "SUM",
+		ZeitreihenTyp::Fahrplan => "FPL",
+	};
+
+	let mut segmente = vec![
+		bgm_7_segment(),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		rff_segment("Z06", &p.bilanzkreis),
+		sts_segment("7", typ_code),
+	];
+
+	for mw in &p.zeitreihen {
+		segmente.push(qty_segment(mw.wert, &mw.einheit));
+		segmente.push(Segment {
+			tag: "DTM".to_string(),
+			elements: vec![Element {
+				components: vec![
+					"163".to_string(),
+					format!(
+						"{:04}{:02}{:02}{:02}{:02}{:02}",
+						mw.zeitpunkt.date().year(),
+						mw.zeitpunkt.date().month(),
+						mw.zeitpunkt.date().day(),
+						mw.zeitpunkt.time().hour(),
+						mw.zeitpunkt.time().minute(),
+						mw.zeitpunkt.time().second(),
+					),
+					"203".to_string(),
+				],
+			}],
+		});
+	}
+
+	wrap_mscons(nachricht, segmente)
+}
+
+fn serialize_mscons_mehr_mindermengen(
+	nachricht: &Nachricht,
+	p: &MsconsMehrMindermengen,
+) -> String {
+	let segmente = vec![
+		bgm_7_segment(),
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		loc_segment(p.malo_id.as_str()),
+		qty_qualified_segment("46", p.mehrmenge_kwh, "kWh"),
+		qty_qualified_segment("47", p.mindermenge_kwh, "kWh"),
+		dtm_date_segment("163", &p.abrechnungszeitraum_von),
+		dtm_date_segment("164", &p.abrechnungszeitraum_bis),
+	];
+	wrap_mscons(nachricht, segmente)
+}
+
+// ---------------------------------------------------------------------------
+// INVOIC parser + serializer
+// ---------------------------------------------------------------------------
+
+fn parse_invoic(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender_id = extract_mp_id(segs, "MS")?;
+	let empfaenger_id = extract_mp_id(segs, "MR")?;
+
+	let bgm = find_segment(segs, "BGM")?;
+	let rechnungsnummer = bgm
+		.elements
+		.get(1)
+		.and_then(|e| e.components.first())
+		.cloned()
+		.unwrap_or_default();
+
+	let rechnungsdatum = extract_date(segs, "137")?;
+
+	// PID for rechnungstyp
+	let pid_opt = find_qualified_segment(segs, "RFF", "Z13")
+		.ok()
+		.and_then(|rff| rff.elements.first())
+		.and_then(|e| e.components.get(1))
+		.and_then(|s| s.parse::<u32>().ok())
+		.and_then(PruefIdentifikator::from_code);
+
+	let rechnungstyp = match pid_opt {
+		Some(PruefIdentifikator::Netznutzungsrechnung) => RechnungsTyp::Netznutzung,
+		Some(PruefIdentifikator::RechnungMessstellenbetrieb) => RechnungsTyp::Messstellenbetrieb,
+		_ => RechnungsTyp::Netznutzung,
+	};
+
+	// Collect LIN+QTY+MOA+PRI groups
+	let mut positionen = Vec::new();
+	let mut i = 0;
+	while i < segs.len() {
+		if segs[i].tag == "LIN" {
+			let bezeichnung = segs[i]
+				.elements
+				.get(2)
+				.and_then(|e| e.components.first())
+				.cloned()
+				.unwrap_or_default();
+
+			let mut menge = 0.0;
+			let mut einheit = "kWh".to_string();
+			let mut einzelpreis_ct: i64 = 0;
+			let mut betrag_ct: i64 = 0;
+
+			for j in (i + 1)..segs.len() {
+				if segs[j].tag == "LIN" || segs[j].tag == "MOA" && segs[j]
+					.elements
+					.first()
+					.and_then(|e| e.components.first())
+					.is_some_and(|q| q == "86")
+				{
+					// Stop at next LIN or MOA+86 (total)
+					if segs[j].tag == "LIN" {
+						break;
+					}
+				}
+				if segs[j].tag == "QTY"
+					&& segs[j]
+						.elements
+						.first()
+						.and_then(|e| e.components.first())
+						.is_some_and(|q| q == "47")
+				{
+					menge = segs[j]
+						.elements
+						.first()
+						.and_then(|e| e.components.get(1))
+						.and_then(|s| s.parse::<f64>().ok())
+						.unwrap_or(0.0);
+					einheit = extract_einheit_from_qty(&segs[j]);
+				}
+				if segs[j].tag == "MOA"
+					&& segs[j]
+						.elements
+						.first()
+						.and_then(|e| e.components.first())
+						.is_some_and(|q| q == "203")
+				{
+					betrag_ct = segs[j]
+						.elements
+						.first()
+						.and_then(|e| e.components.get(1))
+						.and_then(|s| s.parse::<i64>().ok())
+						.unwrap_or(0);
+				}
+				if segs[j].tag == "PRI" {
+					einzelpreis_ct = segs[j]
+						.elements
+						.first()
+						.and_then(|e| e.components.get(1))
+						.and_then(|s| s.parse::<i64>().ok())
+						.unwrap_or(0);
+				}
+			}
+
+			positionen.push(RechnungsPosition {
+				bezeichnung,
+				menge,
+				einheit,
+				einzelpreis_ct,
+				betrag_ct,
+			});
+		}
+		i += 1;
+	}
+
+	// MOA+86 = Gesamtbetrag
+	let gesamtbetrag_ct = find_qualified_segment(segs, "MOA", "86")
+		.ok()
+		.and_then(|moa| moa.elements.first())
+		.and_then(|e| e.components.get(1))
+		.and_then(|s| s.parse::<i64>().ok())
+		.unwrap_or(0);
+
+	Ok(Nachricht {
+		absender: absender_id.clone(),
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger: empfaenger_id.clone(),
+		empfaenger_rolle: MarktRolle::Lieferant,
+		pruef_id: pid_opt,
+		payload: NachrichtenPayload::InvoicRechnung(InvoicRechnung {
+			rechnungsnummer,
+			rechnungsdatum,
+			absender: absender_id,
+			empfaenger: empfaenger_id,
+			positionen,
+			gesamtbetrag_ct,
+			rechnungstyp,
+		}),
+	})
+}
+
+fn serialize_invoic_rechnung(nachricht: &Nachricht, p: &InvoicRechnung) -> String {
+	let pid_code = nachricht
+		.pruef_id
+		.map(|pid| pid.code().to_string())
+		.unwrap_or_default();
+
+	let mut segmente = vec![
+		Segment {
+			tag: "BGM".to_string(),
+			elements: vec![
+				Element {
+					components: vec!["380".to_string()],
+				},
+				Element {
+					components: vec![p.rechnungsnummer.clone()],
+				},
+			],
+		},
+		dtm_date_segment("137", &p.rechnungsdatum),
+	];
+	if !pid_code.is_empty() {
+		segmente.push(rff_z13_segment(&pid_code));
+	}
+	segmente.push(nad_segment("MS", nachricht.absender.as_str()));
+	segmente.push(nad_segment("MR", nachricht.empfaenger.as_str()));
+
+	for (idx, pos) in p.positionen.iter().enumerate() {
+		segmente.push(lin_segment(idx + 1, &pos.bezeichnung));
+		segmente.push(qty_qualified_segment("47", pos.menge, &pos.einheit));
+		segmente.push(moa_i64_segment("203", pos.betrag_ct));
+		segmente.push(pri_i64_segment(pos.einzelpreis_ct));
+	}
+	segmente.push(moa_i64_segment("86", p.gesamtbetrag_ct));
+
+	wrap_edifact(nachricht, "INVOIC", "D:01B:UN:2.8e", segmente)
+}
+
+// ---------------------------------------------------------------------------
+// REMADV parser + serializer
+// ---------------------------------------------------------------------------
+
+fn parse_remadv(segs: &[Segment]) -> Result<Nachricht, CodecFehler> {
+	let absender = extract_mp_id(segs, "MS")?;
+	let empfaenger = extract_mp_id(segs, "MR")?;
+
+	let rff_on = find_qualified_segment(segs, "RFF", "ON")?;
+	let referenz = rff_on
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.cloned()
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "RFF+ON".to_string(),
+			feld: "referenz_rechnungsnummer".to_string(),
+		})?;
+
+	let zahlungsdatum = extract_date(segs, "171")?;
+
+	let moa = find_qualified_segment(segs, "MOA", "9")?;
+	let betrag_str = moa
+		.elements
+		.first()
+		.and_then(|e| e.components.get(1))
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "MOA+9".to_string(),
+			feld: "betrag_ct".to_string(),
+		})?;
+	let betrag_ct = betrag_str
+		.parse::<i64>()
+		.map_err(|_| CodecFehler::UngueltigerWert {
+			segment: "MOA+9".to_string(),
+			feld: "betrag_ct".to_string(),
+			wert: betrag_str.clone(),
+		})?;
+
+	// STS+7++{code} has 3 elements: ["7"], [], [code]
+	let sts = find_qualified_segment(segs, "STS", "7")?;
+	let status_code = sts
+		.elements
+		.get(2)
+		.and_then(|e| e.components.first())
+		.cloned()
+		.unwrap_or_default();
+	let akzeptiert = status_code == "Z06";
+
+	// FTX+AAO+++{text} has 3 elements: ["AAO"], [], [text]
+	let ablehnungsgrund = find_qualified_segment(segs, "FTX", "AAO")
+		.ok()
+		.and_then(|ftx| ftx.elements.get(2))
+		.and_then(|e| e.components.first())
+		.cloned();
+
+	Ok(Nachricht {
+		absender,
+		absender_rolle: MarktRolle::Lieferant,
+		empfaenger,
+		empfaenger_rolle: MarktRolle::Netzbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::RemadvZahlungsavis(RemadvZahlungsavis {
+			referenz_rechnungsnummer: referenz,
+			zahlungsdatum,
+			betrag_ct,
+			akzeptiert,
+			ablehnungsgrund,
+		}),
+	})
+}
+
+fn serialize_remadv_zahlungsavis(nachricht: &Nachricht, p: &RemadvZahlungsavis) -> String {
+	let status_code = if p.akzeptiert { "Z06" } else { "Z08" };
+	let mut segmente = vec![
+		Segment {
+			tag: "BGM".to_string(),
+			elements: vec![
+				Element {
+					components: vec!["481".to_string()],
+				},
+				Element {
+					components: vec!["DOK00001".to_string()],
+				},
+			],
+		},
+		dtm_137_segment(),
+		nad_segment("MS", nachricht.absender.as_str()),
+		nad_segment("MR", nachricht.empfaenger.as_str()),
+		rff_segment("ON", &p.referenz_rechnungsnummer),
+		dtm_date_segment("171", &p.zahlungsdatum),
+		moa_i64_segment("9", p.betrag_ct),
+		sts_segment("7", status_code),
+	];
+	if let Some(ref grund) = p.ablehnungsgrund {
+		segmente.push(ftx_segment("AAO", grund));
+	}
+	wrap_edifact(nachricht, "REMADV", "D:01B:UN:2.9d", segmente)
+}
+
+// ---------------------------------------------------------------------------
 // Segment builder helpers
 // ---------------------------------------------------------------------------
 
@@ -1186,6 +2467,169 @@ fn qty_segment(wert: f64, einheit: &str) -> Segment {
 	}
 }
 
+fn rff_segment(qualifier: &str, value: &str) -> Segment {
+	Segment {
+		tag: "RFF".to_string(),
+		elements: vec![Element {
+			components: vec![qualifier.to_string(), value.to_string()],
+		}],
+	}
+}
+
+fn imd_segment(beschreibung: &str) -> Segment {
+	Segment {
+		tag: "IMD".to_string(),
+		elements: vec![
+			Element {
+				components: vec!["F".to_string()],
+			},
+			Element {
+				components: vec![],
+			},
+			Element {
+				components: vec![
+					String::new(),
+					String::new(),
+					String::new(),
+					beschreibung.to_string(),
+				],
+			},
+		],
+	}
+}
+
+fn moa_segment(qualifier: &str, wert: f64) -> Segment {
+	Segment {
+		tag: "MOA".to_string(),
+		elements: vec![Element {
+			components: vec![qualifier.to_string(), format!("{wert}")],
+		}],
+	}
+}
+
+fn moa_i64_segment(qualifier: &str, wert: i64) -> Segment {
+	Segment {
+		tag: "MOA".to_string(),
+		elements: vec![Element {
+			components: vec![qualifier.to_string(), wert.to_string()],
+		}],
+	}
+}
+
+fn sts_segment(qualifier: &str, code: &str) -> Segment {
+	Segment {
+		tag: "STS".to_string(),
+		elements: vec![
+			Element {
+				components: vec![qualifier.to_string()],
+			},
+			Element {
+				components: vec![],
+			},
+			Element {
+				components: vec![code.to_string()],
+			},
+		],
+	}
+}
+
+fn ftx_segment(qualifier: &str, text: &str) -> Segment {
+	Segment {
+		tag: "FTX".to_string(),
+		elements: vec![
+			Element {
+				components: vec![qualifier.to_string()],
+			},
+			Element {
+				components: vec![],
+			},
+			Element {
+				components: vec![text.to_string()],
+			},
+		],
+	}
+}
+
+fn lin_segment(nr: usize, bezeichnung: &str) -> Segment {
+	Segment {
+		tag: "LIN".to_string(),
+		elements: vec![
+			Element {
+				components: vec![nr.to_string()],
+			},
+			Element {
+				components: vec![],
+			},
+			Element {
+				components: vec![bezeichnung.to_string()],
+			},
+		],
+	}
+}
+
+fn pri_segment(preis_ct: f64) -> Segment {
+	Segment {
+		tag: "PRI".to_string(),
+		elements: vec![Element {
+			components: vec!["INV".to_string(), format!("{preis_ct}")],
+		}],
+	}
+}
+
+fn pri_i64_segment(preis_ct: i64) -> Segment {
+	Segment {
+		tag: "PRI".to_string(),
+		elements: vec![Element {
+			components: vec!["INV".to_string(), preis_ct.to_string()],
+		}],
+	}
+}
+
+fn mea_segment(einheit: &str) -> Segment {
+	Segment {
+		tag: "MEA".to_string(),
+		elements: vec![
+			Element {
+				components: vec!["AAE".to_string()],
+			},
+			Element {
+				components: vec!["AAF".to_string()],
+			},
+			Element {
+				components: vec![einheit.to_string()],
+			},
+		],
+	}
+}
+
+fn qty_qualified_segment(qualifier: &str, wert: f64, einheit: &str) -> Segment {
+	Segment {
+		tag: "QTY".to_string(),
+		elements: vec![Element {
+			components: vec![qualifier.to_string(), format!("{wert}"), einheit.to_string()],
+		}],
+	}
+}
+
+fn wrap_edifact(
+	nachricht: &Nachricht,
+	typ: &str,
+	version: &str,
+	segmente: Vec<Segment>,
+) -> String {
+	let interchange = Interchange {
+		sender: nachricht.absender.as_str().to_string(),
+		empfaenger: nachricht.empfaenger.as_str().to_string(),
+		datum: "20260101".to_string(),
+		nachrichten: vec![EdifactNachricht {
+			typ: typ.to_string(),
+			version: version.to_string(),
+			segmente,
+		}],
+	};
+	serialize_interchange(&interchange)
+}
+
 fn wrap_utilmd(nachricht: &Nachricht, segmente: Vec<Segment>) -> String {
 	let interchange = Interchange {
 		sender: nachricht.absender.as_str().to_string(),
@@ -1249,6 +2693,23 @@ fn extract_malo_id(segs: &[Segment]) -> Result<MaLoId, CodecFehler> {
 		segment: "IDE+24".to_string(),
 		feld: "MaLo-ID".to_string(),
 		wert: malo_str.clone(),
+	})
+}
+
+fn extract_melo_id(segs: &[Segment]) -> Result<MeLoId, CodecFehler> {
+	let ide = find_qualified_segment(segs, "IDE", "24")?;
+	let melo_str = ide
+		.elements
+		.get(1)
+		.and_then(|e| e.components.first())
+		.ok_or(CodecFehler::FeldFehlt {
+			segment: "IDE+24".to_string(),
+			feld: "MeLo-ID".to_string(),
+		})?;
+	MeLoId::new(melo_str).map_err(|_| CodecFehler::UngueltigerWert {
+		segment: "IDE+24".to_string(),
+		feld: "MeLo-ID".to_string(),
+		wert: melo_str.clone(),
 	})
 }
 

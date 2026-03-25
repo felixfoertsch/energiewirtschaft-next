@@ -1,11 +1,12 @@
 use chrono::NaiveDate;
 
 use mako_types::gpke_nachrichten::*;
+use mako_types::ids::MaLoId;
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 use mako_types::pruefidentifikator::PruefIdentifikator;
 use mako_types::rolle::MarktRolle;
 
-use crate::ids::{test_malo, test_mp_id};
+use crate::ids::{test_malo, test_melo, test_mp_id};
 
 // ---------------------------------------------------------------------------
 // 1. Anmeldung (E01 / PID 44001) — LFN -> NB
@@ -534,6 +535,199 @@ pub fn geschaeftsdatenantwort_erwartet() -> Nachricht {
 	}
 }
 
+// ===========================================================================
+// WiM Variants
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// 14. MSB-Wechsel Anmeldung (E03, MeLo-ID, no PID) — MSB -> NB
+// ---------------------------------------------------------------------------
+
+pub fn msb_wechsel_anmeldung_edi() -> String {
+	let sender = test_mp_id(3); // MSB
+	let empfaenger = test_mp_id(1); // NB
+	let melo = test_melo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E03+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 IDE+24+{melo}'\
+		 DTM+92:20260801:102'\
+		 UNT+8+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		melo = melo.as_str(),
+	)
+}
+
+pub fn msb_wechsel_anmeldung_erwartet() -> Nachricht {
+	let msb = test_mp_id(3);
+	let nb = test_mp_id(1);
+
+	Nachricht {
+		absender: msb.clone(),
+		absender_rolle: MarktRolle::Messstellenbetreiber,
+		empfaenger: nb,
+		empfaenger_rolle: MarktRolle::Netzbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdMsbWechselAnmeldung(UtilmdMsbWechselAnmeldung {
+			melo_id: test_melo(0),
+			msb_neu: msb,
+			wechseldatum: NaiveDate::from_ymd_opt(2026, 8, 1).unwrap(),
+		}),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 15. Geraetewechsel (E03, MeLo-ID, CCI+Z30 pairs) — MSB -> NB
+// ---------------------------------------------------------------------------
+
+pub fn geraetewechsel_edi() -> String {
+	let sender = test_mp_id(3); // MSB
+	let empfaenger = test_mp_id(1); // NB
+	let melo = test_melo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E03+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 IDE+24+{melo}'\
+		 DTM+92:20260801:102'\
+		 CCI+Z30'\
+		 CAV+ALT-1234'\
+		 CCI+Z30'\
+		 CAV+NEU-5678'\
+		 UNT+12+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		melo = melo.as_str(),
+	)
+}
+
+pub fn geraetewechsel_erwartet() -> Nachricht {
+	let msb = test_mp_id(3);
+	let nb = test_mp_id(1);
+
+	Nachricht {
+		absender: msb,
+		absender_rolle: MarktRolle::Messstellenbetreiber,
+		empfaenger: nb,
+		empfaenger_rolle: MarktRolle::Netzbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdGeraetewechsel(UtilmdGeraetewechsel {
+			melo_id: test_melo(0),
+			alte_geraete_nr: "ALT-1234".to_string(),
+			neue_geraete_nr: "NEU-5678".to_string(),
+			wechseldatum: NaiveDate::from_ymd_opt(2026, 8, 1).unwrap(),
+		}),
+	}
+}
+
+// ===========================================================================
+// MaBiS Variants
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// 16. Bilanzkreiszuordnung (E01, RFF+Z06) — LF -> NB
+// ---------------------------------------------------------------------------
+
+pub fn bilanzkreiszuordnung_edi() -> String {
+	let sender = test_mp_id(0); // LF
+	let empfaenger = test_mp_id(1); // NB
+	let malo = test_malo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E01+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 IDE+24+{malo}'\
+		 DTM+92:20260701:102'\
+		 RFF+Z06:11XDE-BKTEST-X'\
+		 UNT+9+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo = malo.as_str(),
+	)
+}
+
+pub fn bilanzkreiszuordnung_erwartet() -> Nachricht {
+	let lf = test_mp_id(0);
+	let nb = test_mp_id(1);
+
+	Nachricht {
+		absender: lf,
+		absender_rolle: MarktRolle::Lieferant,
+		empfaenger: nb,
+		empfaenger_rolle: MarktRolle::Netzbetreiber,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdBilanzkreiszuordnung(UtilmdBilanzkreiszuordnung {
+			malo_id: test_malo(0),
+			bilanzkreis: "11XDE-BKTEST-X".to_string(),
+			gueltig_ab: NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
+		}),
+	}
+}
+
+// ---------------------------------------------------------------------------
+// 17. Clearingliste (E06, CCI+CLEARING entries) — NB -> LF
+// ---------------------------------------------------------------------------
+
+pub fn clearingliste_edi() -> String {
+	let sender = test_mp_id(1); // NB
+	let empfaenger = test_mp_id(0); // LF
+	let malo0 = test_malo(0);
+
+	format!(
+		"UNB+UNOC:3+{sender}:500+{empfaenger}:500+260325:1200+00001'\
+		 UNH+1+UTILMD:D:11A:UN:S2.1'\
+		 BGM+E06+DOK00001'\
+		 DTM+137:20260325120000?+01:303'\
+		 NAD+MS+{sender}::293'\
+		 NAD+MR+{empfaenger}::293'\
+		 CCI+CLEARING:{malo0}:Spannungsebene'\
+		 CAV+Niederspannung:Mittelspannung'\
+		 UNT+8+1'\
+		 UNZ+1+00001'",
+		sender = sender.as_str(),
+		empfaenger = empfaenger.as_str(),
+		malo0 = malo0.as_str(),
+	)
+}
+
+pub fn clearingliste_erwartet() -> Nachricht {
+	let nb = test_mp_id(1);
+	let lf = test_mp_id(0);
+
+	Nachricht {
+		absender: nb,
+		absender_rolle: MarktRolle::Netzbetreiber,
+		empfaenger: lf,
+		empfaenger_rolle: MarktRolle::Lieferant,
+		pruef_id: None,
+		payload: NachrichtenPayload::UtilmdClearingliste(UtilmdClearingliste {
+			eintraege: vec![ClearingEintrag {
+				malo_id: test_malo(0),
+				feld: "Spannungsebene".to_string(),
+				nb_wert: "Niederspannung".to_string(),
+				lf_wert: Some("Mittelspannung".to_string()),
+			}],
+		}),
+	}
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -728,6 +922,74 @@ mod tests {
 	#[test]
 	fn roundtrip_geschaeftsdatenantwort() {
 		let parsed = parse_nachricht(&geschaeftsdatenantwort_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- 14. MSB-Wechsel Anmeldung ---
+
+	#[test]
+	fn parse_msb_wechsel_anmeldung() {
+		let edi = msb_wechsel_anmeldung_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, msb_wechsel_anmeldung_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_msb_wechsel_anmeldung() {
+		let parsed = parse_nachricht(&msb_wechsel_anmeldung_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- 15. Geraetewechsel ---
+
+	#[test]
+	fn parse_geraetewechsel() {
+		let edi = geraetewechsel_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, geraetewechsel_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_geraetewechsel() {
+		let parsed = parse_nachricht(&geraetewechsel_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- 16. Bilanzkreiszuordnung ---
+
+	#[test]
+	fn parse_bilanzkreiszuordnung() {
+		let edi = bilanzkreiszuordnung_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, bilanzkreiszuordnung_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_bilanzkreiszuordnung() {
+		let parsed = parse_nachricht(&bilanzkreiszuordnung_edi()).unwrap();
+		let serialized = serialize_nachricht(&parsed);
+		let reparsed = parse_nachricht(&serialized).unwrap();
+		assert_eq!(reparsed, parsed);
+	}
+
+	// --- 17. Clearingliste ---
+
+	#[test]
+	fn parse_clearingliste() {
+		let edi = clearingliste_edi();
+		let parsed = parse_nachricht(&edi).expect("parsing must succeed");
+		assert_eq!(parsed, clearingliste_erwartet());
+	}
+
+	#[test]
+	fn roundtrip_clearingliste() {
+		let parsed = parse_nachricht(&clearingliste_edi()).unwrap();
 		let serialized = serialize_nachricht(&parsed);
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
