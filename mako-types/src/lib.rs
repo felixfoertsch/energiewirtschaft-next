@@ -4,6 +4,7 @@ pub mod ids;
 pub mod fehler;
 pub mod gpke_nachrichten;
 pub mod nachricht;
+pub mod pruefidentifikator;
 pub mod querschnitt;
 pub mod reducer;
 pub mod version;

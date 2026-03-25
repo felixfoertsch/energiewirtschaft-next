@@ -96,6 +96,7 @@ pub fn reduce(state: LfwState, event: LfwEvent) -> Result<ReducerOutput<LfwState
 				absender_rolle: MarktRolle::Netzbetreiber,
 				empfaenger: lfn.clone(),
 				empfaenger_rolle: MarktRolle::LieferantNeu,
+			pruef_id: None,
 				payload: NachrichtenPayload::UtilmdBestaetigung(UtilmdBestaetigung {
 					malo_id: malo.clone(),
 					bestaetigt_fuer: lfn.clone(),
@@ -107,6 +108,7 @@ pub fn reduce(state: LfwState, event: LfwEvent) -> Result<ReducerOutput<LfwState
 				absender_rolle: MarktRolle::Netzbetreiber,
 				empfaenger: lfa.clone(),
 				empfaenger_rolle: MarktRolle::LieferantAlt,
+			pruef_id: None,
 				payload: NachrichtenPayload::UtilmdAbmeldung(UtilmdAbmeldung {
 					malo_id: malo.clone(),
 					lieferant_alt: lfa.clone(),
@@ -161,6 +163,7 @@ pub fn reduce(state: LfwState, event: LfwEvent) -> Result<ReducerOutput<LfwState
 				absender_rolle: MarktRolle::Netzbetreiber,
 				empfaenger: lfn.clone(),
 				empfaenger_rolle: MarktRolle::LieferantNeu,
+			pruef_id: None,
 				payload: NachrichtenPayload::UtilmdZuordnung(UtilmdZuordnung {
 					malo_id: malo.clone(),
 					zugeordnet_an: lfn.clone(),
@@ -172,6 +175,7 @@ pub fn reduce(state: LfwState, event: LfwEvent) -> Result<ReducerOutput<LfwState
 				absender_rolle: MarktRolle::Netzbetreiber,
 				empfaenger: lfa.clone(),
 				empfaenger_rolle: MarktRolle::LieferantAlt,
+			pruef_id: None,
 				payload: NachrichtenPayload::UtilmdZuordnung(UtilmdZuordnung {
 					malo_id: malo.clone(),
 					zugeordnet_an: lfn.clone(),

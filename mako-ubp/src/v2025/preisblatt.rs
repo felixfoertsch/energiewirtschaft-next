@@ -40,6 +40,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Messstellenbetreiber,
 				empfaenger: nb,
 				empfaenger_rolle: MarktRolle::Netzbetreiber,
+			pruef_id: None,
 				payload: NachrichtenPayload::PricatPreisblatt(PricatPreisblatt {
 					herausgeber: pricat.herausgeber.clone(),
 					gueltig_ab: pricat.gueltig_ab,

@@ -48,6 +48,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Uebertragungsnetzbetreiber,
 				empfaenger,
 				empfaenger_rolle: MarktRolle::Netzbetreiber,
+			pruef_id: None,
 				payload: NachrichtenPayload::RdAktivierung(ak.clone()),
 			};
 			Ok(ReducerOutput {

@@ -16,6 +16,7 @@ pub fn anmeldung(lieferbeginn: NaiveDate) -> Nachricht {
 		absender_rolle: MarktRolle::LieferantNeu,
 		empfaenger: nb,
 		empfaenger_rolle: MarktRolle::Netzbetreiber,
+			pruef_id: None,
 		payload: NachrichtenPayload::UtilmdAnmeldung(UtilmdAnmeldung {
 			malo_id: test_malo(0),
 			lieferant_neu: lfn,
@@ -32,6 +33,7 @@ pub fn bestaetigung(empfaenger: MarktpartnerId, lieferbeginn: NaiveDate) -> Nach
 		absender_rolle: MarktRolle::Netzbetreiber,
 		empfaenger: empfaenger.clone(),
 		empfaenger_rolle: MarktRolle::LieferantNeu,
+			pruef_id: None,
 		payload: NachrichtenPayload::UtilmdBestaetigung(UtilmdBestaetigung {
 			malo_id: test_malo(0),
 			bestaetigt_fuer: empfaenger,
@@ -48,6 +50,7 @@ pub fn abmeldung(lfa: MarktpartnerId, lieferende: NaiveDate) -> Nachricht {
 		absender_rolle: MarktRolle::Netzbetreiber,
 		empfaenger: lfa.clone(),
 		empfaenger_rolle: MarktRolle::LieferantAlt,
+			pruef_id: None,
 		payload: NachrichtenPayload::UtilmdAbmeldung(UtilmdAbmeldung {
 			malo_id: test_malo(0),
 			lieferant_alt: lfa,

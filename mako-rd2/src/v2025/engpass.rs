@@ -38,6 +38,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Uebertragungsnetzbetreiber,
 				empfaenger,
 				empfaenger_rolle: MarktRolle::Netzbetreiber,
+			pruef_id: None,
 				payload: NachrichtenPayload::RdEngpass(e.clone()),
 			};
 			Ok(ReducerOutput {

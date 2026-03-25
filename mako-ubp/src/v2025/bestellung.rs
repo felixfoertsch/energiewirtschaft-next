@@ -59,6 +59,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Lieferant,
 				empfaenger: msb,
 				empfaenger_rolle: MarktRolle::Messstellenbetreiber,
+			pruef_id: None,
 				payload: NachrichtenPayload::ReqoteAngebotsanfrage(ReqoteAngebotsanfrage {
 					melo_id: req.melo_id.clone(),
 					anfragender: req.anfragender.clone(),
@@ -103,6 +104,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Lieferant,
 				empfaenger: msb,
 				empfaenger_rolle: MarktRolle::Messstellenbetreiber,
+			pruef_id: None,
 				payload: NachrichtenPayload::OrdersBestellung(OrdersBestellung {
 					melo_id: best.melo_id.clone(),
 					besteller: best.besteller.clone(),

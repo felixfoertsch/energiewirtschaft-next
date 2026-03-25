@@ -76,6 +76,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Netzbetreiber,
 				empfaenger: msb_neu.clone(),
 				empfaenger_rolle: MarktRolle::Messstellenbetreiber,
+			pruef_id: None,
 				payload: NachrichtenPayload::UtilmdMsbWechselAnmeldung(
 					UtilmdMsbWechselAnmeldung {
 						melo_id: melo.clone(),

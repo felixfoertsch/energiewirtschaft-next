@@ -51,6 +51,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Netzbetreiber,
 				empfaenger: empfaenger.clone(),
 				empfaenger_rolle: MarktRolle::Uebertragungsnetzbetreiber,
+			pruef_id: None,
 				payload: NachrichtenPayload::RdStammdaten(sd.clone()),
 			};
 			Ok(ReducerOutput {

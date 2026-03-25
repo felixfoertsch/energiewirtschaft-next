@@ -111,6 +111,7 @@ mod tests {
 			absender_rolle: MarktRolle::LieferantNeu,
 			empfaenger: mp_nb(),
 			empfaenger_rolle: MarktRolle::Netzbetreiber,
+			pruef_id: None,
 			payload: NachrichtenPayload::UtilmdAnmeldung(UtilmdAnmeldung {
 				malo_id: malo(),
 				lieferant_neu: mp_lfn(),
@@ -139,6 +140,7 @@ mod tests {
 			absender_rolle: MarktRolle::LieferantNeu,
 			empfaenger: mp_nb(),
 			empfaenger_rolle: MarktRolle::Netzbetreiber,
+			pruef_id: None,
 			payload: NachrichtenPayload::UtilmdAnmeldung(UtilmdAnmeldung {
 				malo_id: malo(),
 				lieferant_neu: mp_lfn(),
@@ -161,6 +163,7 @@ mod tests {
 			absender_rolle: MarktRolle::LieferantNeu,
 			empfaenger: mp_nb(),
 			empfaenger_rolle: MarktRolle::Netzbetreiber,
+			pruef_id: None,
 			payload: NachrichtenPayload::UtilmdAnmeldung(UtilmdAnmeldung {
 				malo_id: malo(),
 				lieferant_neu: mp_lfn(),
@@ -194,6 +197,7 @@ mod tests {
 			absender_rolle: MarktRolle::LieferantNeu,
 			empfaenger: mp_nb(),
 			empfaenger_rolle: MarktRolle::Netzbetreiber,
+			pruef_id: None,
 			payload: NachrichtenPayload::UtilmdAnmeldung(UtilmdAnmeldung {
 				malo_id: malo(),
 				lieferant_neu: mp_lfn(),
@@ -208,6 +212,7 @@ mod tests {
 			absender_rolle: MarktRolle::Netzbetreiber,
 			empfaenger: mp_lfn(),
 			empfaenger_rolle: MarktRolle::LieferantNeu,
+			pruef_id: None,
 			payload: NachrichtenPayload::UtilmdBestaetigung(UtilmdBestaetigung {
 				malo_id: malo(),
 				bestaetigt_fuer: mp_lfn(),
@@ -222,6 +227,7 @@ mod tests {
 			absender_rolle: MarktRolle::Netzbetreiber,
 			empfaenger: mp_lfa(),
 			empfaenger_rolle: MarktRolle::LieferantAlt,
+			pruef_id: None,
 			payload: NachrichtenPayload::UtilmdAbmeldung(UtilmdAbmeldung {
 				malo_id: malo(),
 				lieferant_alt: mp_lfa(),
@@ -236,6 +242,7 @@ mod tests {
 			absender_rolle: MarktRolle::Netzbetreiber,
 			empfaenger: mp_lfn(),
 			empfaenger_rolle: MarktRolle::LieferantNeu,
+			pruef_id: None,
 			payload: NachrichtenPayload::UtilmdZuordnung(UtilmdZuordnung {
 				malo_id: malo(),
 				zugeordnet_an: mp_lfn(),
@@ -250,6 +257,7 @@ mod tests {
 			absender_rolle: MarktRolle::Netzbetreiber,
 			empfaenger: mp_lfa(),
 			empfaenger_rolle: MarktRolle::LieferantAlt,
+			pruef_id: None,
 			payload: NachrichtenPayload::UtilmdZuordnung(UtilmdZuordnung {
 				malo_id: malo(),
 				zugeordnet_an: mp_lfn(),

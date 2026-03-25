@@ -84,6 +84,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Netzbetreiber,
 				empfaenger: anlagenbetreiber.clone(),
 				empfaenger_rolle: MarktRolle::BetreiberErzeugungsanlage,
+			pruef_id: None,
 				payload: NachrichtenPayload::UtilmdAnmeldungErzeugung(
 					UtilmdAnmeldungErzeugung {
 						malo_id: malo.clone(),
@@ -139,6 +140,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Netzbetreiber,
 				empfaenger: anlagenbetreiber.clone(),
 				empfaenger_rolle: MarktRolle::BetreiberErzeugungsanlage,
+			pruef_id: None,
 				payload: NachrichtenPayload::MsconsEinspeiseMesswerte(m),
 			};
 			Ok(ReducerOutput {

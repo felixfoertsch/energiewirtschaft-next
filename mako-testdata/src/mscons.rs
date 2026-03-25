@@ -18,6 +18,7 @@ pub fn schlussturnusmesswert(malo_id: MaLoId, zaehlerstand: f64, stichtag: Naive
 		absender_rolle: MarktRolle::Netzbetreiber,
 		empfaenger: lf,
 		empfaenger_rolle: MarktRolle::Lieferant,
+			pruef_id: None,
 		payload: NachrichtenPayload::MsconsSchlussturnusmesswert(MsconsSchlussturnusmesswert {
 			malo_id,
 			zaehlerstand,
@@ -63,6 +64,7 @@ pub fn lastgang_15min(malo_id: MaLoId, start_date: NaiveDate, days: u32, base_kw
 		absender_rolle: MarktRolle::Messstellenbetreiber,
 		empfaenger: nb,
 		empfaenger_rolle: MarktRolle::Netzbetreiber,
+			pruef_id: None,
 		payload: NachrichtenPayload::MsconsLastgang(MsconsLastgang {
 			malo_id,
 			werte,
@@ -80,6 +82,7 @@ pub fn zaehlerstand(malo_id: MaLoId, stand: f64, datum: NaiveDate) -> Nachricht 
 		absender_rolle: MarktRolle::Messstellenbetreiber,
 		empfaenger: nb,
 		empfaenger_rolle: MarktRolle::Netzbetreiber,
+			pruef_id: None,
 		payload: NachrichtenPayload::MsconsSchlussturnusmesswert(MsconsSchlussturnusmesswert {
 			malo_id,
 			zaehlerstand: stand,

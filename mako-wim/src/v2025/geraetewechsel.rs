@@ -49,6 +49,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Messstellenbetreiber,
 				empfaenger: nb,
 				empfaenger_rolle: MarktRolle::Netzbetreiber,
+			pruef_id: None,
 				payload: NachrichtenPayload::UtilmdGeraetewechsel(UtilmdGeraetewechsel {
 					melo_id: gw.melo_id.clone(),
 					alte_geraete_nr: gw.alte_geraete_nr.clone(),

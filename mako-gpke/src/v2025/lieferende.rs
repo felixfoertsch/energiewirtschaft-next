@@ -81,6 +81,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Netzbetreiber,
 				empfaenger: lf,
 				empfaenger_rolle: MarktRolle::Lieferant,
+			pruef_id: None,
 				payload: NachrichtenPayload::UtilmdLieferendeBestaetigung(
 					UtilmdLieferendeBestaetigung {
 						malo_id: malo.clone(),

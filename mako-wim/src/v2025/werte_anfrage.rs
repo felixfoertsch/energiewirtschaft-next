@@ -43,6 +43,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Lieferant,
 				empfaenger: msb,
 				empfaenger_rolle: MarktRolle::Messstellenbetreiber,
+			pruef_id: None,
 				payload: NachrichtenPayload::OrdersWerteAnfrage(OrdersWerteAnfrage {
 					malo_id: anfrage.malo_id.clone(),
 					anfragender: anfrage.anfragender.clone(),

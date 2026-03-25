@@ -48,6 +48,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Einsatzverantwortlicher,
 				empfaenger,
 				empfaenger_rolle: MarktRolle::Uebertragungsnetzbetreiber,
+			pruef_id: None,
 				payload: NachrichtenPayload::RdFahrplan(fp.clone()),
 			};
 			Ok(ReducerOutput {

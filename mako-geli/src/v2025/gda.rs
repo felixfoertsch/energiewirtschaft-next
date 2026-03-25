@@ -68,6 +68,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Netzbetreiber,
 				empfaenger: anfragender,
 				empfaenger_rolle: MarktRolle::Lieferant,
+			pruef_id: None,
 				payload: NachrichtenPayload::UtilmdGeschaeftsdatenantwort(
 					UtilmdGeschaeftsdatenantwort {
 						malo_id: malo.clone(),

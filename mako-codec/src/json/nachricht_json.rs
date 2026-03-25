@@ -26,6 +26,7 @@ mod tests {
 			absender_rolle: MarktRolle::LieferantNeu,
 			empfaenger: MarktpartnerId::new("9900000000010").unwrap(),
 			empfaenger_rolle: MarktRolle::Netzbetreiber,
+			pruef_id: None,
 			payload: NachrichtenPayload::UtilmdAnmeldung(UtilmdAnmeldung {
 				malo_id: MaLoId::new("51238696788").unwrap(),
 				lieferant_neu: MarktpartnerId::new("9900000000003").unwrap(),

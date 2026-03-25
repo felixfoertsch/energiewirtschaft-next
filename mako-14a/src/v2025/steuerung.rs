@@ -58,6 +58,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Lieferant,
 				empfaenger: nb.clone(),
 				empfaenger_rolle: MarktRolle::Netzbetreiber,
+			pruef_id: None,
 				payload: NachrichtenPayload::UtilmdSteuerbareVerbrauchseinrichtung(a.clone()),
 			};
 			Ok(ReducerOutput {
@@ -89,6 +90,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Netzbetreiber,
 				empfaenger: anmelder.clone(),
 				empfaenger_rolle: MarktRolle::Lieferant,
+			pruef_id: None,
 				payload: NachrichtenPayload::ClsSteuersignal(signal),
 			};
 			Ok(ReducerOutput {
@@ -107,6 +109,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Netzbetreiber,
 				empfaenger: nb.clone(),
 				empfaenger_rolle: MarktRolle::Netzbetreiber,
+			pruef_id: None,
 				payload: NachrichtenPayload::MsconsEinspeiseMesswerte(m),
 			};
 			Ok(ReducerOutput {

@@ -41,6 +41,7 @@ pub fn reduce(
 				absender_rolle: MarktRolle::Netzbetreiber,
 				empfaenger,
 				empfaenger_rolle: MarktRolle::Uebertragungsnetzbetreiber,
+			pruef_id: None,
 				payload: NachrichtenPayload::RdNichtverfuegbarkeit(nv.clone()),
 			};
 			Ok(ReducerOutput {

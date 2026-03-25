@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::gpke_nachrichten::*;
 use crate::ids::MarktpartnerId;
+use crate::pruefidentifikator::PruefIdentifikator;
 use crate::rolle::MarktRolle;
 
 /// Envelope for any MaKo message, carrying routing info and typed payload.
@@ -11,6 +12,7 @@ pub struct Nachricht {
 	pub absender_rolle: MarktRolle,
 	pub empfaenger: MarktpartnerId,
 	pub empfaenger_rolle: MarktRolle,
+	pub pruef_id: Option<PruefIdentifikator>,
 	pub payload: NachrichtenPayload,
 }
 
