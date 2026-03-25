@@ -19,6 +19,7 @@ members = [
 	"mako-kov",
 	"mako-codec",
 	"mako-sim",
+	"mako-cli",
 ]
 
 [workspace.package]
