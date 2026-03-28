@@ -6,6 +6,8 @@ mod sende;
 mod state_store;
 mod status;
 mod verarbeite;
+mod verifiziere;
+mod verifiziere_batch;
 
 #[derive(Parser)]
 #[command(name = "mako", about = "MaKo-Simulator CLI")]
@@ -56,6 +58,22 @@ enum Commands {
 		#[arg(default_value = "markt")]
 		markt: String,
 	},
+	/// Verify a single EDIFACT file against AHB reference data
+	Verifiziere {
+		/// Path to the EDIFACT file
+		datei: String,
+		/// Path to the referenzdaten directory
+		#[arg(long, default_value = "referenzdaten")]
+		referenzdaten: String,
+	},
+	/// Verify all .edi files in a directory tree
+	VerifiziereBatch {
+		/// Path to the directory containing .edi files
+		verzeichnis: String,
+		/// Path to the referenzdaten directory
+		#[arg(long, default_value = "referenzdaten")]
+		referenzdaten: String,
+	},
 }
 
 fn main() {
@@ -82,6 +100,18 @@ fn main() {
 		}
 		Commands::Status { markt } => {
 			if let Err(e) = status::run(&markt) {
+				eprintln!("Fehler: {e}");
+				std::process::exit(1);
+			}
+		}
+		Commands::Verifiziere { datei, referenzdaten } => {
+			if let Err(e) = verifiziere::run(&datei, &referenzdaten) {
+				eprintln!("Fehler: {e}");
+				std::process::exit(1);
+			}
+		}
+		Commands::VerifiziereBatch { verzeichnis, referenzdaten } => {
+			if let Err(e) = verifiziere_batch::run(&verzeichnis, &referenzdaten) {
 				eprintln!("Fehler: {e}");
 				std::process::exit(1);
 			}
