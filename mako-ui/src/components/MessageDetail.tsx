@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 import { StatusBadge } from "@/components/StatusBadge.tsx";
+import { VerifikationsPanel } from "@/components/VerifikationsPanel.tsx";
 import { rollenLabel } from "@/lib/rollen.ts";
 import { api } from "@/lib/api.ts";
-import type { NachrichtMeta } from "@/lib/types.ts";
+import type { NachrichtMeta, VerifikationsErgebnis } from "@/lib/types.ts";
 
 interface MessageDetailProps {
 	rolle: string;
@@ -27,9 +28,13 @@ export function MessageDetail({ rolle, box, datei, onRolleSwitch, onVerarbeitet 
 	const [showEdifact, setShowEdifact] = useState(false);
 	const [showJson, setShowJson] = useState(false);
 	const [verarbeitung, setVerarbeitung] = useState<string | null>(null);
+	const [verifikation, setVerifikation] = useState<VerifikationsErgebnis | null>(null);
+	const [verifikationLoading, setVerifikationLoading] = useState(false);
 
 	useEffect(() => {
 		let cancelled = false;
+		setVerifikation(null);
+		setVerifikationLoading(false);
 		api.nachricht(rolle, box, datei).then((d) => {
 			if (!cancelled) setData(d);
 		});
@@ -119,6 +124,34 @@ export function MessageDetail({ rolle, box, datei, onRolleSwitch, onVerarbeitet 
 								</span>
 							)}
 						</div>
+					)}
+
+					{/* Verifizieren button */}
+					<div>
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={async () => {
+								setVerifikationLoading(true);
+								setVerifikation(null);
+								try {
+									const result = await api.verifiziere(rolle, box, datei);
+									setVerifikation(result);
+								} catch (e) {
+									console.error("Verifikation fehlgeschlagen:", e);
+								} finally {
+									setVerifikationLoading(false);
+								}
+							}}
+							disabled={verifikationLoading}
+						>
+							{verifikationLoading ? "Verifiziere..." : "Verifizieren"}
+						</Button>
+					</div>
+
+					{/* Verification result */}
+					{verifikation && (
+						<VerifikationsPanel ergebnis={verifikation} />
 					)}
 
 					<Separator />
