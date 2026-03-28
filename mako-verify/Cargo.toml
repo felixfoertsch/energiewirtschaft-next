@@ -1,0 +1,15 @@
+[package]
+name = "mako-verify"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+mako-types = { path = "../mako-types" }
+mako-codec = { path = "../mako-codec" }
+
+[dev-dependencies]
+mako-testdata = { path = "../mako-testdata" }
