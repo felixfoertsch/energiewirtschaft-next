@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.t
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 import { StatusBadge } from "@/components/StatusBadge.tsx";
+import { VerifikationsBadge } from "@/components/VerifikationsBadge.tsx";
 import { rollenLabel } from "@/lib/rollen.ts";
-import type { NachrichtMeta } from "@/lib/types.ts";
+import type { NachrichtMeta, VerifikationsErgebnis } from "@/lib/types.ts";
 
 interface MessageListProps {
 	inbox: NachrichtMeta[];
@@ -12,6 +13,7 @@ interface MessageListProps {
 	selectedDatei: string | null;
 	onSelect: (datei: string, box: "inbox" | "outbox") => void;
 	onRolleSwitch: (rolle: string) => void;
+	verifikationen?: Record<string, VerifikationsErgebnis>;
 }
 
 export function MessageList({
@@ -20,6 +22,7 @@ export function MessageList({
 	selectedDatei,
 	onSelect,
 	onRolleSwitch,
+	verifikationen,
 }: MessageListProps) {
 	return (
 		<div className="flex h-full flex-col overflow-hidden p-4">
@@ -33,6 +36,7 @@ export function MessageList({
 					selectedDatei={selectedDatei}
 					onSelect={onSelect}
 					onRolleSwitch={onRolleSwitch}
+					verifikationen={verifikationen}
 				/>
 			</ScrollArea>
 			<Separator className="my-3" />
@@ -46,6 +50,7 @@ export function MessageList({
 					selectedDatei={selectedDatei}
 					onSelect={onSelect}
 					onRolleSwitch={onRolleSwitch}
+					verifikationen={verifikationen}
 				/>
 			</ScrollArea>
 		</div>
@@ -58,6 +63,7 @@ interface MessageCardsProps {
 	selectedDatei: string | null;
 	onSelect: (datei: string, box: "inbox" | "outbox") => void;
 	onRolleSwitch: (rolle: string) => void;
+	verifikationen?: Record<string, VerifikationsErgebnis>;
 }
 
 function MessageCards({
@@ -66,6 +72,7 @@ function MessageCards({
 	selectedDatei,
 	onSelect,
 	onRolleSwitch,
+	verifikationen,
 }: MessageCardsProps) {
 	if (nachrichten.length === 0) {
 		return <p className="text-muted-foreground text-xs">Keine Nachrichten.</p>;
@@ -121,7 +128,12 @@ function MessageCards({
 								</span>
 							)}
 						</div>
-						<StatusBadge status={n.status} />
+						<div className="flex items-center gap-2">
+							<StatusBadge status={n.status} />
+							{verifikationen?.[n.datei] && (
+								<VerifikationsBadge ergebnis={verifikationen[n.datei]} />
+							)}
+						</div>
 					</CardContent>
 				</Card>
 			))}
