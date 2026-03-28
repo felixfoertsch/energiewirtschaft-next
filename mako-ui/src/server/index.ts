@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { watch } from "chokidar";
 import cors from "cors";
 import express, { type Request, type Response } from "express";
+import { registerRoutes as registerKreuzvalidatorRoutes } from "./kreuzvalidator.ts";
 
 const app = express();
 app.use(cors());
@@ -163,6 +164,88 @@ app.post("/api/nachrichten/:rolle", (req: Request, res: Response) => {
 
 	writeFileSync(filePath, JSON.stringify(payload, null, "\t"), "utf-8");
 	res.json({ ok: true, datei: filename });
+});
+
+// --- Kreuzvalidator (STROMDAO sidecar) ---
+
+registerKreuzvalidatorRoutes(app);
+
+// --- Verification routes ---
+
+const REFERENZDATEN = resolve("../mako-verify/referenzdaten");
+
+app.get("/api/verifiziere/:rolle/:box/:datei", (req: Request, res: Response) => {
+	const rolle = param(req, "rolle");
+	const box = param(req, "box");
+	const datei = param(req, "datei");
+	const filePath = join(MARKT, rolle, box, datei);
+
+	if (!existsSync(filePath)) {
+		res.status(404).json({ error: "Datei nicht gefunden" });
+		return;
+	}
+
+	try {
+		const ausgabe = cli(["verifiziere", filePath, "--referenzdaten", REFERENZDATEN]);
+		const ergebnis = JSON.parse(ausgabe);
+		res.json(ergebnis);
+	} catch (e) {
+		res.status(500).json({ error: `Verifikation fehlgeschlagen: ${String(e)}` });
+	}
+});
+
+app.post("/api/verifiziere-batch", (req: Request, res: Response) => {
+	const { verzeichnis } = req.body ?? {};
+	const dir = verzeichnis ? resolve(verzeichnis) : MARKT;
+
+	if (!existsSync(dir)) {
+		res.status(404).json({ error: "Verzeichnis nicht gefunden" });
+		return;
+	}
+
+	try {
+		const ausgabe = cli(["verifiziere-batch", dir, "--referenzdaten", REFERENZDATEN]);
+		const ergebnis = JSON.parse(ausgabe);
+		res.json(ergebnis);
+	} catch (e) {
+		res.status(500).json({ error: `Batch-Verifikation fehlgeschlagen: ${String(e)}` });
+	}
+});
+
+app.post("/api/verifiziere-schritt", (req: Request, res: Response) => {
+	const { rolle, datei } = req.body ?? {};
+	if (!rolle || !datei) {
+		res.status(400).json({ error: "rolle und datei erforderlich" });
+		return;
+	}
+
+	const filePath = join(MARKT, rolle, "inbox", datei);
+	if (!existsSync(filePath)) {
+		res.status(404).json({ error: "Datei nicht gefunden" });
+		return;
+	}
+
+	try {
+		// Step 1: process the message
+		const verarbeiteAusgabe = cli(["verarbeite", filePath, "--markt", MARKT]);
+
+		// Step 2: verify the message
+		let verifikation: unknown = null;
+		try {
+			const verifiziereAusgabe = cli(["verifiziere", filePath, "--referenzdaten", REFERENZDATEN]);
+			verifikation = JSON.parse(verifiziereAusgabe);
+		} catch (e) {
+			verifikation = { fehler: String(e) };
+		}
+
+		res.json({
+			ok: true,
+			verarbeitung: verarbeiteAusgabe,
+			verifikation,
+		});
+	} catch (e) {
+		res.status(500).json({ error: `Verarbeitung fehlgeschlagen: ${String(e)}` });
+	}
 });
 
 // --- SSE file watcher ---
