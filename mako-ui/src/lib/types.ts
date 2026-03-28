@@ -51,3 +51,80 @@ export interface ProzessInfo {
 	beschreibung: string;
 	zustand: string;
 }
+
+// ---------------------------------------------------------------------------
+// Verification types (matching mako-verify/src/bericht.rs)
+// ---------------------------------------------------------------------------
+
+export type Urteil = "Bestanden" | "Fehlgeschlagen" | "NichtPruefbar";
+
+export interface AhbFeldErgebnis {
+	segment_code: string | null;
+	segment_group: string | null;
+	data_element: string | null;
+	name: string;
+	ahb_ausdruck: string;
+	unser_wert: string | null;
+	erwarteter_wert: string | null;
+	urteil: Urteil;
+	details: string | null;
+}
+
+export interface AhbErgebnis {
+	pruefidentifikator: string;
+	nachrichtentyp: string;
+	felder: AhbFeldErgebnis[];
+	urteil: Urteil;
+	zusammenfassung: string | null;
+}
+
+export interface EbdAusgang {
+	ebd_code: string;
+	schritt: string;
+	beschreibung: string;
+	antwortcode: string | null;
+	notiz: string | null;
+}
+
+export interface EbdErgebnis {
+	ebd_code: string;
+	ebd_name: string;
+	rolle: string;
+	unser_ergebnis: EbdAusgang | null;
+	gueltige_ausgaenge: EbdAusgang[];
+	urteil: Urteil;
+	details: string | null;
+}
+
+export interface InteropFeldVergleich {
+	feld: string;
+	unser_wert: string | null;
+	drittanbieter_wert: string | null;
+	stimmt_ueberein: boolean;
+}
+
+export interface InteropErgebnis {
+	parse_ok_unser: boolean;
+	parse_ok_drittanbieter: boolean;
+	roundtrip_ok: boolean;
+	feldvergleiche: InteropFeldVergleich[];
+	urteil: Urteil;
+}
+
+export interface VerifikationsErgebnis {
+	datei: string;
+	nachrichtentyp: string;
+	pruefidentifikator: string | null;
+	ahb: AhbErgebnis | null;
+	ebd: EbdErgebnis | null;
+	interop: InteropErgebnis | null;
+	gesamt_urteil: Urteil;
+}
+
+export interface BatchErgebnis {
+	gesamt: number;
+	bestanden: number;
+	fehlgeschlagen: number;
+	nicht_pruefbar: number;
+	ergebnisse: VerifikationsErgebnis[];
+}

@@ -1,4 +1,4 @@
-import type { MarktStatus, NachrichtMeta, Rolle } from "./types.ts";
+import type { BatchErgebnis, MarktStatus, NachrichtMeta, Rolle, VerifikationsErgebnis } from "./types.ts";
 
 const BASE = "/api";
 
@@ -36,6 +36,12 @@ export const api = {
 		post<{ ok: boolean; ausgabe: string }>("/verarbeite-alle", { rolle }),
 	erstelle: (rolle: string, payload: Record<string, unknown>) =>
 		post<{ ok: boolean; datei: string }>(`/nachrichten/${rolle}`, payload),
+	verifiziere: (rolle: string, box: string, datei: string) =>
+		get<VerifikationsErgebnis>(`/verifiziere/${rolle}/${box}/${datei}`),
+	verifiziereBatch: (verzeichnis?: string) =>
+		post<BatchErgebnis>("/verifiziere-batch", verzeichnis ? { verzeichnis } : undefined),
+	kreuzvalidatorStatus: () =>
+		get<{ verfuegbar: boolean }>("/kreuzvalidator-status"),
 };
 
 export function subscribeEvents(onMessage: (data: unknown) => void): () => void {
