@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { AufgabenQueue, deriveAufgaben } from "@/components/AufgabenQueue.tsx";
+import { BatchBericht } from "@/components/BatchBericht.tsx";
 import { MessageDetail } from "@/components/MessageDetail.tsx";
 import { MessageForm } from "@/components/MessageForm.tsx";
 import { MessageList } from "@/components/MessageList.tsx";
 import { ProcessTimeline } from "@/components/ProcessTimeline.tsx";
 import { ProzessListe } from "@/components/ProzessListe.tsx";
 import { RollenTabs } from "@/components/RollenTabs.tsx";
+import { Button } from "@/components/ui/button.tsx";
 import { api, subscribeEvents } from "@/lib/api.ts";
-import type { NachrichtMeta, Rolle } from "@/lib/types.ts";
+import type { BatchErgebnis, NachrichtMeta, Rolle } from "@/lib/types.ts";
 
 interface Selection {
 	datei: string;
@@ -24,6 +26,8 @@ export function App() {
 	const [aktiverProzess, setAktiverProzess] = useState<string | null>(null);
 	const [rolleState, setRolleState] = useState<Record<string, unknown>>({});
 	const [showForm, setShowForm] = useState(false);
+	const [batchErgebnis, setBatchErgebnis] = useState<BatchErgebnis | null>(null);
+	const [batchLoading, setBatchLoading] = useState(false);
 
 	const loadRollen = useCallback(async () => {
 		try {
@@ -107,8 +111,26 @@ export function App() {
 
 	return (
 		<div className="flex h-screen flex-col">
-			<header className="border-b px-6 py-3">
+			<header className="flex items-center justify-between border-b px-6 py-3">
 				<h1 className="font-bold text-xl">MaKo-Simulator</h1>
+				<Button
+					variant="outline"
+					size="sm"
+					disabled={batchLoading}
+					onClick={async () => {
+						setBatchLoading(true);
+						try {
+							const result = await api.verifiziereBatch();
+							setBatchErgebnis(result);
+						} catch (e) {
+							console.error("Batch-Verifikation fehlgeschlagen:", e);
+						} finally {
+							setBatchLoading(false);
+						}
+					}}
+				>
+					{batchLoading ? "Verifiziere..." : "Simulation verifizieren"}
+				</Button>
 			</header>
 
 			<RollenTabs
@@ -168,6 +190,14 @@ export function App() {
 
 			{/* Bottom: Process Timeline */}
 			<ProcessTimeline prozessKey={aktiverProzess} aktiveRolle={aktiveRolle} />
+
+			{/* Batch verification modal */}
+			{batchErgebnis && (
+				<BatchBericht
+					ergebnis={batchErgebnis}
+					onClose={() => setBatchErgebnis(null)}
+				/>
+			)}
 		</div>
 	);
 }
