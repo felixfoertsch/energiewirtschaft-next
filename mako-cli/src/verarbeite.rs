@@ -29,14 +29,21 @@ fn find_rolle_dir(
 }
 
 /// Write a CONTRL or APERAK quittung JSON file to the target directory's inbox.
+///
+/// The filename is prefixed with the source message's basename so repeated
+/// processing of different messages does not overwrite earlier acknowledgements.
 fn write_quittung_file(
 	rolle_dir: &Path,
+	source_basename: &str,
 	typ: &str,
 	ergebnis: &mako_quittung::types::QuittungsErgebnis,
 ) -> Result<(), Box<dyn std::error::Error>> {
 	let inbox = rolle_dir.join("inbox");
 	std::fs::create_dir_all(&inbox)?;
-	let filename = format!("{typ}.json");
+	let stem = source_basename
+		.trim_end_matches(".json")
+		.trim_end_matches(".edi");
+	let filename = format!("{stem}.{typ}.json");
 	let content = serde_json::to_string_pretty(ergebnis)?;
 	std::fs::write(inbox.join(filename), content)?;
 	Ok(())
@@ -93,6 +100,10 @@ fn dispatch_reducer(
 ) -> Result<(serde_json::Value, Vec<Nachricht>), Box<dyn std::error::Error>> {
 	match prozess {
 		"gpke_lfw" => dispatch_gpke_lfw(key, states, nachricht),
+		"gpke_lieferende" => dispatch_gpke_lieferende(key, states, nachricht),
+		"gpke_stammdaten" => dispatch_gpke_stammdaten(key, states, nachricht),
+		"gpke_zuordnung" => dispatch_gpke_zuordnung(key, states, nachricht),
+		"gpke_gda" => dispatch_gpke_gda(key, states, nachricht),
 		other => Err(format!("Prozess '{other}' noch nicht implementiert").into()),
 	}
 }
@@ -105,20 +116,151 @@ fn dispatch_gpke_lfw(
 ) -> Result<(serde_json::Value, Vec<Nachricht>), Box<dyn std::error::Error>> {
 	use mako_gpke::v2025::lfw::{LfwState, reduce};
 
-	// Deserialize state (default to Idle if not found)
 	let state: LfwState = states
 		.get(key)
 		.map(|v| serde_json::from_value(v.clone()))
 		.transpose()?
 		.unwrap_or(LfwState::Idle);
-
-	// Map Nachricht to LfwEvent
 	let event = nachricht_to_lfw_event(nachricht)?;
-
-	// Call reducer
 	let output = reduce(state, event)?;
+	let new_state = serde_json::to_value(&output.state)?;
+	Ok((new_state, output.nachrichten))
+}
 
-	// Serialize new state
+fn dispatch_gpke_lieferende(
+	key: &str,
+	states: &StateMap,
+	nachricht: &Nachricht,
+) -> Result<(serde_json::Value, Vec<Nachricht>), Box<dyn std::error::Error>> {
+	use mako_gpke::v2025::lieferende::{LieferendeEvent, LieferendeState, reduce};
+
+	let state: LieferendeState = states
+		.get(key)
+		.map(|v| serde_json::from_value(v.clone()))
+		.transpose()?
+		.unwrap_or(LieferendeState::Idle);
+
+	let event = match &nachricht.payload {
+		NachrichtenPayload::UtilmdLieferendeAbmeldung(a) => {
+			LieferendeEvent::AbmeldungEingegangen(a.clone())
+		}
+		NachrichtenPayload::UtilmdLieferendeBestaetigung(b) => {
+			LieferendeEvent::AbmeldungBestaetigt(b.clone())
+		}
+		NachrichtenPayload::MsconsSchlussturnusmesswert(m) => {
+			LieferendeEvent::SchlussturnusmesswertEmpfangen(m.clone())
+		}
+		NachrichtenPayload::UtilmdAblehnung(a) => {
+			LieferendeEvent::Abgelehnt { grund: a.grund.clone() }
+		}
+		other => {
+			return Err(format!(
+				"Kann {:?} nicht auf LieferendeEvent abbilden",
+				std::mem::discriminant(other)
+			)
+			.into());
+		}
+	};
+
+	let output = reduce(state, event)?;
+	let new_state = serde_json::to_value(&output.state)?;
+	Ok((new_state, output.nachrichten))
+}
+
+fn dispatch_gpke_stammdaten(
+	key: &str,
+	states: &StateMap,
+	nachricht: &Nachricht,
+) -> Result<(serde_json::Value, Vec<Nachricht>), Box<dyn std::error::Error>> {
+	use mako_gpke::v2025::stammdaten::{StammdatenEvent, StammdatenState, reduce};
+
+	let state: StammdatenState = states
+		.get(key)
+		.map(|v| serde_json::from_value(v.clone()))
+		.transpose()?
+		.unwrap_or(StammdatenState::Idle);
+
+	let event = match &nachricht.payload {
+		NachrichtenPayload::UtilmdStammdatenaenderung(s) => {
+			StammdatenEvent::AenderungEingegangen(s.clone())
+		}
+		NachrichtenPayload::UtilmdAblehnung(a) => {
+			StammdatenEvent::AenderungAbgelehnt { grund: a.grund.clone() }
+		}
+		other => {
+			return Err(format!(
+				"Kann {:?} nicht auf StammdatenEvent abbilden",
+				std::mem::discriminant(other)
+			)
+			.into());
+		}
+	};
+
+	let output = reduce(state, event)?;
+	let new_state = serde_json::to_value(&output.state)?;
+	Ok((new_state, output.nachrichten))
+}
+
+fn dispatch_gpke_zuordnung(
+	key: &str,
+	states: &StateMap,
+	nachricht: &Nachricht,
+) -> Result<(serde_json::Value, Vec<Nachricht>), Box<dyn std::error::Error>> {
+	use mako_gpke::v2025::zuordnung::{ZuordnungEvent, ZuordnungState, reduce};
+
+	let state: ZuordnungState = states
+		.get(key)
+		.map(|v| serde_json::from_value(v.clone()))
+		.transpose()?
+		.unwrap_or(ZuordnungState::Idle);
+
+	let event = match &nachricht.payload {
+		NachrichtenPayload::UtilmdZuordnungsliste(l) => ZuordnungEvent::ListeEmpfangen(l.clone()),
+		other => {
+			return Err(format!(
+				"Kann {:?} nicht auf ZuordnungEvent abbilden",
+				std::mem::discriminant(other)
+			)
+			.into());
+		}
+	};
+
+	let output = reduce(state, event)?;
+	let new_state = serde_json::to_value(&output.state)?;
+	Ok((new_state, output.nachrichten))
+}
+
+fn dispatch_gpke_gda(
+	key: &str,
+	states: &StateMap,
+	nachricht: &Nachricht,
+) -> Result<(serde_json::Value, Vec<Nachricht>), Box<dyn std::error::Error>> {
+	use mako_gpke::v2025::gda::{GdaEvent, GdaState, reduce};
+
+	let state: GdaState = states
+		.get(key)
+		.map(|v| serde_json::from_value(v.clone()))
+		.transpose()?
+		.unwrap_or(GdaState::Idle);
+
+	let event = match &nachricht.payload {
+		NachrichtenPayload::UtilmdGeschaeftsdatenanfrage(g) => {
+			GdaEvent::AnfrageEingegangen(g.clone())
+		}
+		NachrichtenPayload::UtilmdGeschaeftsdatenantwort(g) => {
+			GdaEvent::AntwortEmpfangen(g.clone())
+		}
+		NachrichtenPayload::UtilmdAblehnung(a) => GdaEvent::Abgelehnt { grund: a.grund.clone() },
+		other => {
+			return Err(format!(
+				"Kann {:?} nicht auf GdaEvent abbilden",
+				std::mem::discriminant(other)
+			)
+			.into());
+		}
+	};
+
+	let output = reduce(state, event)?;
 	let new_state = serde_json::to_value(&output.state)?;
 	Ok((new_state, output.nachrichten))
 }
@@ -180,11 +322,13 @@ pub fn run_alle(markt: &str, rolle: &str) -> Result<(), Box<dyn std::error::Erro
 			continue;
 		}
 
-		// Skip if already has "verarbeitet" status
+		// Skip if already has a "verarbeitet" timestamp recorded in the status sidecar.
 		let status_path = inbox.join(format!("{}.status.json", path.file_name().unwrap().to_string_lossy()));
 		if status_path.exists() {
 			let content = std::fs::read_to_string(&status_path)?;
-			if content.contains("verarbeitet") {
+			let parsed: serde_json::Value = serde_json::from_str(&content)
+				.map_err(|e| format!("status.json '{}' ist kein JSON: {e}", status_path.display()))?;
+			if parsed.get("verarbeitet").is_some() {
 				continue;
 			}
 		}
@@ -216,9 +360,16 @@ pub fn run(datei: &str, markt: &str) -> Result<(), Box<dyn std::error::Error>> {
 	let empfaenger_dir = find_rolle_dir(markt_path, &nachricht.empfaenger, &rollen)?;
 	let absender_dir = find_rolle_dir(markt_path, &nachricht.absender, &rollen)?;
 
+	// Source basename — used to namespace the CONTRL/APERAK quittungen so a
+	// later message with the same payload type does not overwrite earlier ones.
+	let source_basename = Path::new(datei)
+		.file_name()
+		.map(|n| n.to_string_lossy().to_string())
+		.unwrap_or_else(|| "nachricht".to_string());
+
 	// 4. CONTRL check
 	let contrl = mako_quittung::contrl::contrl_pruefen(&nachricht);
-	write_quittung_file(&absender_dir, "contrl", &contrl)?;
+	write_quittung_file(&absender_dir, &source_basename, "contrl", &contrl)?;
 	update_status(datei, "contrl", serde_json::to_value(&contrl)?)?;
 
 	if matches!(contrl, mako_quittung::types::QuittungsErgebnis::Negativ(_)) {
@@ -230,7 +381,7 @@ pub fn run(datei: &str, markt: &str) -> Result<(), Box<dyn std::error::Error>> {
 	// 5. APERAK check
 	let stichtag = chrono::Local::now().date_naive();
 	let aperak = mako_quittung::aperak::aperak_pruefen(&nachricht, stichtag);
-	write_quittung_file(&absender_dir, "aperak", &aperak)?;
+	write_quittung_file(&absender_dir, &source_basename, "aperak", &aperak)?;
 	update_status(datei, "aperak", serde_json::to_value(&aperak)?)?;
 
 	if matches!(aperak, mako_quittung::types::QuittungsErgebnis::Negativ(_)) {
@@ -244,22 +395,26 @@ pub fn run(datei: &str, markt: &str) -> Result<(), Box<dyn std::error::Error>> {
 		.ok_or("Kein Prozess für diesen Nachrichtentyp gefunden")?;
 
 	// 7. Load state, dispatch reducer
-	let mut states = crate::state_store::load_state(&empfaenger_dir);
+	let mut states = crate::state_store::load_state(&empfaenger_dir)?;
 	let (new_state, outgoing) =
 		dispatch_reducer(&zuordnung.prozess, &zuordnung.key, &states, &nachricht)?;
 
 	// 8. Save state
 	states.insert(zuordnung.key.clone(), new_state);
-	crate::state_store::save_state(&empfaenger_dir, &states);
+	crate::state_store::save_state(&empfaenger_dir, &states)?;
 
-	// 9. Write outgoing messages
+	// 9. Write outgoing messages with a sequence prefix so multiple messages of
+	// the same type do not overwrite each other.
+	let outbox = empfaenger_dir.join("outbox");
+	std::fs::create_dir_all(&outbox)?;
 	for msg in &outgoing {
-		let filename = format!("{}.json", payload_short_name(&msg.payload));
+		let existing = std::fs::read_dir(&outbox)
+			.map(|d| d.filter_map(|e| e.ok()).filter(|e| e.path().is_file()).count())
+			.unwrap_or(0);
+		let seq = format!("{:03}", existing + 1);
+		let filename = format!("{seq}_{}.json", payload_short_name(&msg.payload));
 		let json = serde_json::to_string_pretty(msg)?;
-		let outbox = empfaenger_dir.join("outbox");
-		std::fs::create_dir_all(&outbox)?;
 		std::fs::write(outbox.join(&filename), &json)?;
-		// Log each outgoing message
 		let empfaenger_name = empfaenger_dir
 			.file_name()
 			.map(|n| n.to_string_lossy().to_string())
@@ -330,11 +485,12 @@ mod tests {
 		let result = run(datei.to_str().unwrap(), markt.to_str().unwrap());
 		assert!(result.is_ok(), "verarbeite fehlgeschlagen: {result:?}");
 
-		// Check: CONTRL written to absender (lieferant_neu) inbox
+		// Check: CONTRL written to absender (lieferant_neu) inbox.
+		// Filename is namespaced by source basename so repeats don't collide.
 		let contrl_path = markt
 			.join("lieferant_neu")
 			.join("inbox")
-			.join("contrl.json");
+			.join("anmeldung.contrl.json");
 		assert!(contrl_path.exists(), "CONTRL quittung nicht geschrieben");
 		let contrl_content = std::fs::read_to_string(&contrl_path).unwrap();
 		assert!(
@@ -346,7 +502,7 @@ mod tests {
 		let aperak_path = markt
 			.join("lieferant_neu")
 			.join("inbox")
-			.join("aperak.json");
+			.join("anmeldung.aperak.json");
 		assert!(aperak_path.exists(), "APERAK quittung nicht geschrieben");
 		let aperak_content = std::fs::read_to_string(&aperak_path).unwrap();
 		assert!(
@@ -398,7 +554,7 @@ mod tests {
 		let aperak_path = markt
 			.join("lieferant_neu")
 			.join("inbox")
-			.join("aperak.json");
+			.join("anmeldung_past.aperak.json");
 		let aperak_content = std::fs::read_to_string(&aperak_path).unwrap();
 		assert!(
 			aperak_content.contains("Negativ"),
@@ -412,5 +568,41 @@ mod tests {
 			!state_content.contains("AnmeldungEingegangen"),
 			"State sollte nicht aktualisiert worden sein"
 		);
+	}
+
+	#[test]
+	fn quittungen_kollidieren_nicht_bei_mehreren_nachrichten() {
+		let (_tmp, markt) = setup_markt();
+		let lfn_id = MarktpartnerId::new(&crate::init::mp_id_for_index(0)).unwrap();
+		let nb_id = MarktpartnerId::new(&crate::init::mp_id_for_index(1)).unwrap();
+
+		// Two different MaLos so the LFW reducer accepts both (each Idle).
+		for (idx, dateiname) in [(0u8, "msg_a.json"), (1u8, "msg_b.json")] {
+			let nachricht = Nachricht {
+				absender: lfn_id.clone(),
+				absender_rolle: mako_types::rolle::MarktRolle::LieferantNeu,
+				empfaenger: nb_id.clone(),
+				empfaenger_rolle: mako_types::rolle::MarktRolle::Netzbetreiber,
+				pruef_id: None,
+				payload: NachrichtenPayload::UtilmdAnmeldung(
+					mako_types::gpke_nachrichten::UtilmdAnmeldung {
+						malo_id: mako_testdata::ids::test_malo(idx),
+						lieferant_neu: lfn_id.clone(),
+						lieferbeginn: NaiveDate::from_ymd_opt(2027, 1, 1).unwrap(),
+					},
+				),
+			};
+			let inbox = markt.join("netzbetreiber").join("inbox");
+			let datei = inbox.join(dateiname);
+			std::fs::write(&datei, serde_json::to_string_pretty(&nachricht).unwrap()).unwrap();
+			run(datei.to_str().unwrap(), markt.to_str().unwrap()).unwrap();
+		}
+
+		// Both quittungen must coexist — earlier ones must not have been overwritten.
+		let absender_inbox = markt.join("lieferant_neu").join("inbox");
+		assert!(absender_inbox.join("msg_a.contrl.json").exists());
+		assert!(absender_inbox.join("msg_b.contrl.json").exists());
+		assert!(absender_inbox.join("msg_a.aperak.json").exists());
+		assert!(absender_inbox.join("msg_b.aperak.json").exists());
 	}
 }

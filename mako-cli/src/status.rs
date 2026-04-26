@@ -22,7 +22,7 @@ pub fn run(markt: &str) -> Result<(), Box<dyn std::error::Error>> {
 		let outbox_count = count_files(&path.join("outbox"));
 
 		// Read state.json for active processes
-		let states = crate::state_store::load_state(&path);
+		let states = crate::state_store::load_state(&path)?;
 		let mut proz: Vec<String> = states.keys().cloned().collect();
 		proz.sort();
 		let proz_str = if proz.is_empty() { "-".to_string() } else { proz.join(", ") };
@@ -33,12 +33,19 @@ pub fn run(markt: &str) -> Result<(), Box<dyn std::error::Error>> {
 	Ok(())
 }
 
+/// Count regular files in a directory, excluding `.status.json` sidecars
+/// (which are metadata, not real messages).
 pub fn count_files(dir: &std::path::Path) -> usize {
 	std::fs::read_dir(dir)
 		.map(|entries| {
 			entries
 				.filter_map(|e| e.ok())
-				.filter(|e| e.path().is_file())
+				.filter(|e| {
+					if !e.path().is_file() {
+						return false;
+					}
+					!e.file_name().to_string_lossy().ends_with(".status.json")
+				})
 				.count()
 		})
 		.unwrap_or(0)
