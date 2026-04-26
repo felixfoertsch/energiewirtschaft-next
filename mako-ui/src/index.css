@@ -133,3 +133,42 @@
     @apply font-sans;
 	}
 }
+
+@layer components {
+	.rjsf fieldset {
+		@apply space-y-3 border-0 p-0;
+	}
+
+	.rjsf .form-group {
+		@apply space-y-1.5;
+	}
+
+	.rjsf label.control-label {
+		@apply block text-xs font-medium text-muted-foreground;
+	}
+
+	.rjsf input,
+	.rjsf select,
+	.rjsf textarea {
+		@apply w-full rounded border border-input bg-background px-2 py-1.5 text-sm;
+	}
+
+	.rjsf textarea {
+		@apply min-h-24 font-mono;
+	}
+
+	.rjsf .field-description,
+	.rjsf .help-block {
+		@apply text-xs text-muted-foreground;
+	}
+
+	.rjsf .errors,
+	.rjsf .error-detail,
+	.rjsf .text-danger {
+		@apply text-xs text-destructive;
+	}
+
+	.rjsf .required {
+		@apply text-destructive;
+	}
+}
