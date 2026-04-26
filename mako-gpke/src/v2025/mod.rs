@@ -1,9 +1,10 @@
+pub mod gda;
+pub mod katalog;
 pub mod lfw;
 pub mod lieferende;
 pub mod rollen;
 pub mod stammdaten;
 pub mod zuordnung;
-pub mod gda;
 
 #[cfg(test)]
 mod lfw_tests;

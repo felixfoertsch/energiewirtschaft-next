@@ -1,3 +1,4 @@
+pub mod katalog;
 pub mod netznutzung;
 pub mod rollen;
 

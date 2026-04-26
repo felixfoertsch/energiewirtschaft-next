@@ -1,4 +1,5 @@
 pub mod bestellung;
+pub mod katalog;
 pub mod preisblatt;
 pub mod rollen;
 
