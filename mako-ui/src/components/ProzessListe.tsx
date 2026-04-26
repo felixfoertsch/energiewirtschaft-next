@@ -1,15 +1,22 @@
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { cn } from "@/lib/utils.ts";
-import { KATEGORIEN, type ProzessDef, prozesseFuerRolle } from "@/lib/prozesse.ts";
+import {
+	KATEGORIEN,
+	kategorieLabel,
+	type ProzessDef,
+	type ProzessKategorie,
+	prozesseFuerRolle,
+} from "@/lib/prozesse.ts";
 
 interface ProzessListeProps {
 	rolle: string;
 	aktiverProzess: string | null;
 	onSelect: (key: string) => void;
+	prozesse: readonly ProzessDef[];
 }
 
-export function ProzessListe({ rolle, aktiverProzess, onSelect }: ProzessListeProps) {
-	const verfuegbar = prozesseFuerRolle(rolle);
+export function ProzessListe({ rolle, aktiverProzess, onSelect, prozesse }: ProzessListeProps) {
+	const verfuegbar = prozesseFuerRolle(rolle, prozesse);
 
 	if (verfuegbar.length === 0) {
 		return (
@@ -19,7 +26,7 @@ export function ProzessListe({ rolle, aktiverProzess, onSelect }: ProzessListePr
 		);
 	}
 
-	const grouped = new Map<string, ProzessDef[]>();
+	const grouped = new Map<ProzessKategorie, ProzessDef[]>();
 	for (const kat of KATEGORIEN) {
 		const procs = verfuegbar.filter((p) => p.kategorie === kat);
 		if (procs.length > 0) grouped.set(kat, procs);
@@ -31,7 +38,7 @@ export function ProzessListe({ rolle, aktiverProzess, onSelect }: ProzessListePr
 				{[...grouped.entries()].map(([kat, procs]) => (
 					<div key={kat}>
 						<h3 className="mb-1 font-semibold text-[11px] text-muted-foreground uppercase tracking-wider">
-							{kat}
+							{kategorieLabel(kat)}
 						</h3>
 						<div className="space-y-0.5">
 							{procs.map((p) => (

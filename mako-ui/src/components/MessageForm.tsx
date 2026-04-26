@@ -4,20 +4,22 @@ import { Button } from "@/components/ui/button.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 import { api } from "@/lib/api.ts";
-import { type ProzessDef, type ProzessSchrittDef, PROZESSE } from "@/lib/prozesse.ts";
+import type { ProzessDef, SchrittDef } from "@/lib/prozesse.ts";
+import { NACHRICHTEN_TYP_LABEL } from "@/lib/types.ts";
 import { rollenKuerzel, rollenLabel } from "@/lib/rollen.ts";
 
 interface MessageFormProps {
 	rolle: string;
 	aktiverProzess: string | null;
 	onSent: () => void;
+	prozesse: readonly ProzessDef[];
 }
 
-export function MessageForm({ rolle, aktiverProzess, onSent }: MessageFormProps) {
-	const prozess = PROZESSE.find((p) => p.key === aktiverProzess);
+export function MessageForm({ rolle, aktiverProzess, onSent, prozesse }: MessageFormProps) {
+	const prozess = prozesse.find((p) => p.key === aktiverProzess);
 	const sendbareSchritte = prozess?.schritte.filter((s) => s.absender === rolle) ?? [];
 
-	const [selectedSchritt, setSelectedSchritt] = useState<ProzessSchrittDef | null>(
+	const [selectedSchritt, setSelectedSchritt] = useState<SchrittDef | null>(
 		sendbareSchritte[0] ?? null,
 	);
 	const [maloId, setMaloId] = useState("51238696700");
@@ -59,7 +61,7 @@ export function MessageForm({ rolle, aktiverProzess, onSent }: MessageFormProps)
 				payload: {
 					typ: selectedSchritt.typ,
 					malo_id: maloId,
-					sparte: prozess.kategorie.includes("Gas") ? "Gas" : "Strom",
+					sparte: prozess.kategorie.includes("gas") ? "Gas" : "Strom",
 				},
 			};
 
@@ -110,7 +112,7 @@ export function MessageForm({ rolle, aktiverProzess, onSent }: MessageFormProps)
 						<>
 							{/* Empfänger */}
 							<div className="flex items-center gap-2 text-xs">
-								<Badge variant="outline">{selectedSchritt.nachrichtentyp}</Badge>
+								<Badge variant="outline">{NACHRICHTEN_TYP_LABEL[selectedSchritt.nachrichten_typ]}</Badge>
 								<span className="text-muted-foreground">
 									{rollenLabel(rolle)} → {rollenLabel(selectedSchritt.empfaenger)}
 								</span>
@@ -164,7 +166,7 @@ function EdifactPreviewInline({
 	maloId,
 	rolle,
 }: {
-	schritt: ProzessSchrittDef;
+	schritt: SchrittDef;
 	prozess: ProzessDef;
 	maloId: string;
 	rolle: string;
@@ -192,7 +194,7 @@ function EdifactPreviewInline({
 }
 
 function generatePreviewEdifact(
-	schritt: ProzessSchrittDef,
+	schritt: SchrittDef,
 	_prozess: ProzessDef,
 	maloId: string,
 	rolle: string,
@@ -202,10 +204,11 @@ function generatePreviewEdifact(
 	const zeit = now.toISOString().slice(11, 15).replace(/:/g, "");
 	const absender = rollenKuerzel(rolle);
 	const empfaenger = rollenKuerzel(schritt.empfaenger);
+	const ediTyp = NACHRICHTEN_TYP_LABEL[schritt.nachrichten_typ];
 
 	return [
 		`UNB+UNOC:3+${absender}:500+${empfaenger}:500+${datum}:${zeit}+00001'`,
-		`UNH+00001+${schritt.nachrichtentyp}:D:11A:UN:5.2e'`,
+		`UNH+00001+${ediTyp}:D:11A:UN:5.2e'`,
 		`BGM+E01+${schritt.typ}+9'`,
 		`DTM+137:${datum}:102'`,
 		`NAD+MS+${absender}::293'`,

@@ -9,7 +9,7 @@ import { ProzessListe } from "@/components/ProzessListe.tsx";
 import { RollenSidebar } from "@/components/RollenSidebar.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { api, subscribeEvents } from "@/lib/api.ts";
-import type { BatchErgebnis, NachrichtMeta, Rolle } from "@/lib/types.ts";
+import type { BatchErgebnis, NachrichtMeta, ProzessDef, Rolle } from "@/lib/types.ts";
 
 interface Selection {
 	datei: string;
@@ -18,6 +18,7 @@ interface Selection {
 
 export function App() {
 	const [rollen, setRollen] = useState<Rolle[]>([]);
+	const [prozesse, setProzesse] = useState<ProzessDef[]>([]);
 	const [aktiveRolle, setAktiveRolle] = useState("");
 	const [inbox, setInbox] = useState<NachrichtMeta[]>([]);
 	const [outbox, setOutbox] = useState<NachrichtMeta[]>([]);
@@ -40,6 +41,14 @@ export function App() {
 			setServerError(`Server nicht erreichbar (rollen): ${String(e)}`);
 		}
 	}, [aktiveRolle]);
+
+	// One-shot: the engine's process catalog only changes on server restart,
+	// so we never need to refetch this during the session.
+	useEffect(() => {
+		api.prozesse()
+			.then(setProzesse)
+			.catch((e) => setServerError(`Prozesskatalog nicht ladbar: ${String(e)}`));
+	}, []);
 
 	const loadMessages = useCallback(async () => {
 		if (!aktiveRolle) return;
@@ -115,7 +124,7 @@ export function App() {
 		setSelection(null);
 	}, []);
 
-	const aufgaben = deriveAufgaben(aktiveRolle, rolleState);
+	const aufgaben = deriveAufgaben(aktiveRolle, rolleState, prozesse);
 
 	return (
 		<div className="flex h-screen flex-col">
@@ -174,6 +183,7 @@ export function App() {
 								rolle={aktiveRolle}
 								aktiverProzess={aktiverProzess}
 								onSelect={handleProzessSelect}
+								prozesse={prozesse}
 							/>
 						</div>
 
@@ -203,6 +213,7 @@ export function App() {
 									rolle={aktiveRolle}
 									aktiverProzess={aktiverProzess}
 									onSent={loadMessages}
+									prozesse={prozesse}
 								/>
 							) : (
 								<div className="p-4">
@@ -215,7 +226,7 @@ export function App() {
 					</div>
 
 					{/* Bottom: Process Timeline */}
-					<ProcessTimeline prozessKey={aktiverProzess} aktiveRolle={aktiveRolle} />
+					<ProcessTimeline prozessKey={aktiverProzess} aktiveRolle={aktiveRolle} prozesse={prozesse} />
 				</div>
 			</div>
 

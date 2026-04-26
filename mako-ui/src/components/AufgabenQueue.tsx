@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge.tsx";
 import { Card, CardContent } from "@/components/ui/card.tsx";
 import { rollenLabel } from "@/lib/rollen.ts";
-import { PROZESSE } from "@/lib/prozesse.ts";
+import type { ProzessDef } from "@/lib/prozesse.ts";
 
 export interface Aufgabe {
 	prozessKey: string;
@@ -13,12 +13,13 @@ export interface Aufgabe {
 export function deriveAufgaben(
 	aktiveRolle: string,
 	states: Record<string, unknown>,
+	prozesse: readonly ProzessDef[],
 ): Aufgabe[] {
 	const aufgaben: Aufgabe[] = [];
 
 	for (const [key, zustand] of Object.entries(states)) {
 		const prozessKey = key.split("/")[0];
-		const prozess = PROZESSE.find((p) => p.key === prozessKey);
+		const prozess = prozesse.find((p) => p.key === prozessKey);
 		if (!prozess) continue;
 
 		const zustandStr = typeof zustand === "string"

@@ -1,20 +1,21 @@
 import { cn } from "@/lib/utils.ts";
-import { PROZESSE } from "@/lib/prozesse.ts";
+import { kategorieLabel, type ProzessDef } from "@/lib/prozesse.ts";
 import { rollenKuerzel } from "@/lib/rollen.ts";
 
 interface ProcessTimelineProps {
 	prozessKey: string | null;
 	aktiveRolle: string;
+	prozesse: readonly ProzessDef[];
 }
 
-export function ProcessTimeline({ prozessKey, aktiveRolle }: ProcessTimelineProps) {
-	const prozess = PROZESSE.find((p) => p.key === prozessKey);
+export function ProcessTimeline({ prozessKey, aktiveRolle, prozesse }: ProcessTimelineProps) {
+	const prozess = prozesse.find((p) => p.key === prozessKey);
 	if (!prozess) return null;
 
 	return (
 		<div className="border-t bg-muted/30 px-6 py-3">
 			<div className="mb-1.5 text-[11px] text-muted-foreground">
-				{prozess.kategorie} — {prozess.name}
+				{kategorieLabel(prozess.kategorie)} — {prozess.name}
 			</div>
 			<div className="flex items-center gap-1">
 				{prozess.schritte.map((s, i) => {

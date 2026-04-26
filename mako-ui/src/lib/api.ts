@@ -1,4 +1,11 @@
-import type { BatchErgebnis, MarktStatus, NachrichtMeta, Rolle, VerifikationsErgebnis } from "./types.ts";
+import type {
+	BatchErgebnis,
+	MarktStatus,
+	NachrichtMeta,
+	ProzessDef,
+	Rolle,
+	VerifikationsErgebnis,
+} from "./types.ts";
 
 // Derive the API base from Vite's `import.meta.env.BASE_URL` so a path-prefixed
 // deployment (e.g. base "/ewn/") routes API + SSE through "/ewn/api" while a
@@ -23,6 +30,7 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 
 export const api = {
 	rollen: () => get<Rolle[]>("/rollen"),
+	prozesse: () => get<ProzessDef[]>("/prozesse"),
 	inbox: (rolle: string) => get<NachrichtMeta[]>(`/rollen/${rolle}/inbox`),
 	outbox: (rolle: string) => get<NachrichtMeta[]>(`/rollen/${rolle}/outbox`),
 	state: (rolle: string) => get<Record<string, unknown>>(`/rollen/${rolle}/state`),

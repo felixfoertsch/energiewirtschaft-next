@@ -35,6 +35,69 @@ export interface ProzessDefinition {
 	schritte: Omit<ProzessSchritt, "status">[];
 }
 
+// ---------------------------------------------------------------------------
+// Engine process catalog (mirror of mako_types::katalog::ProzessDef).
+// Slugs in absender/empfaenger come from MarktRolle::serialize so we can
+// match them against the role list returned by /api/rollen.
+// ---------------------------------------------------------------------------
+
+export type ProzessKategorie =
+	| "gpke"
+	| "wim"
+	| "ubp"
+	| "ma_bis"
+	| "abrechnung"
+	| "rd2"
+	| "para14a"
+	| "geli_gas"
+	| "gabi_gas"
+	| "ko_v"
+	| "mpes";
+
+export type NachrichtenTyp =
+	| "Utilmd"
+	| "Mscons"
+	| "Invoic"
+	| "Remadv"
+	| "Reqote"
+	| "Quotes"
+	| "Orders"
+	| "Ordrsp"
+	| "Pricat"
+	| "RdXml"
+	| "Cls"
+	| "Intern";
+
+export const NACHRICHTEN_TYP_LABEL: Record<NachrichtenTyp, string> = {
+	Utilmd: "UTILMD",
+	Mscons: "MSCONS",
+	Invoic: "INVOIC",
+	Remadv: "REMADV",
+	Reqote: "REQOTE",
+	Quotes: "QUOTES",
+	Orders: "ORDERS",
+	Ordrsp: "ORDRSP",
+	Pricat: "PRICAT",
+	RdXml: "XML",
+	Cls: "CLS",
+	Intern: "",
+};
+
+export interface SchrittDef {
+	name: string;
+	absender: string;
+	empfaenger: string;
+	typ: string;
+	nachrichten_typ: NachrichtenTyp;
+}
+
+export interface ProzessDef {
+	key: string;
+	name: string;
+	kategorie: ProzessKategorie;
+	schritte: SchrittDef[];
+}
+
 export interface MarktStatus {
 	rollen: RollenStatus[];
 }
