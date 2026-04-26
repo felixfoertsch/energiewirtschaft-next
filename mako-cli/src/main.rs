@@ -2,6 +2,7 @@ use clap::{Parser, Subcommand};
 
 mod event_mapping;
 mod init;
+mod prozesse_json;
 mod sende;
 mod state_store;
 mod status;
@@ -74,6 +75,8 @@ enum Commands {
 		#[arg(long, default_value = "referenzdaten")]
 		referenzdaten: String,
 	},
+	/// Print the engine's process catalog as JSON (for the test UI)
+	ProzesseJson,
 }
 
 fn main() {
@@ -116,5 +119,6 @@ fn main() {
 				std::process::exit(1);
 			}
 		}
+		Commands::ProzesseJson => prozesse_json::run(),
 	}
 }

@@ -356,6 +356,7 @@ dependencies = [
  "mako-gasumrechnung",
  "mako-geli",
  "mako-gpke",
+ "mako-katalog",
  "mako-kov",
  "mako-mabis",
  "mako-mpes",
@@ -434,6 +435,26 @@ dependencies = [
  "mako-testdata",
  "mako-types",
  "serde",
+]
+
+[[package]]
+name = "mako-katalog"
+version = "0.1.0"
+dependencies = [
+ "mako-14a",
+ "mako-abrechnung",
+ "mako-gabi",
+ "mako-geli",
+ "mako-gpke",
+ "mako-kov",
+ "mako-mabis",
+ "mako-mpes",
+ "mako-rd2",
+ "mako-types",
+ "mako-ubp",
+ "mako-wim",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

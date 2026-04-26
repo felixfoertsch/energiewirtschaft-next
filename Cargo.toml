@@ -21,6 +21,7 @@ members = [
 	"mako-sim",
 	"mako-cli",
 	"mako-verify",
+	"mako-katalog",
 ]
 
 [workspace.package]

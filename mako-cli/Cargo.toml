@@ -25,6 +25,7 @@ mako-gabi = { path = "../mako-gabi" }
 mako-kov = { path = "../mako-kov" }
 mako-gasumrechnung = { path = "../mako-gasumrechnung" }
 mako-verify = { path = "../mako-verify" }
+mako-katalog = { path = "../mako-katalog" }
 
 [dev-dependencies]
 mako-testdata = { path = "../mako-testdata" }
