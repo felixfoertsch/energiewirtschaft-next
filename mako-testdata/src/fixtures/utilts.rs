@@ -67,7 +67,7 @@ mod tests {
 	#[test]
 	fn roundtrip_utilts_zaehlzeitdefinition() {
 		let parsed = parse_nachricht(&zaehlzeitdefinition_edi()).unwrap();
-		let serialized = serialize_nachricht(&parsed);
+		let serialized = serialize_nachricht(&parsed).expect("serialize");
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
 	}

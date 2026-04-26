@@ -116,7 +116,7 @@ mod tests {
 	#[test]
 	fn roundtrip_werte_anfrage() {
 		let parsed = parse_nachricht(&werte_anfrage_edi()).unwrap();
-		let serialized = serialize_nachricht(&parsed);
+		let serialized = serialize_nachricht(&parsed).expect("serialize");
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
 	}
@@ -131,7 +131,7 @@ mod tests {
 	#[test]
 	fn roundtrip_bestellung() {
 		let parsed = parse_nachricht(&bestellung_edi()).unwrap();
-		let serialized = serialize_nachricht(&parsed);
+		let serialized = serialize_nachricht(&parsed).expect("serialize");
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
 	}

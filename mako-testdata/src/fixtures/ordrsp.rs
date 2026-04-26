@@ -69,7 +69,7 @@ mod tests {
 	#[test]
 	fn roundtrip_bestellantwort() {
 		let parsed = parse_nachricht(&bestellantwort_edi()).unwrap();
-		let serialized = serialize_nachricht(&parsed);
+		let serialized = serialize_nachricht(&parsed).expect("serialize");
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
 	}

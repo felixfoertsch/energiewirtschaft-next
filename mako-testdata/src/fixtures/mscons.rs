@@ -547,7 +547,7 @@ mod tests {
 	#[test]
 	fn roundtrip_zaehlerstand() {
 		let parsed = parse_nachricht(&zaehlerstand_edi()).unwrap();
-		let serialized = serialize_nachricht(&parsed);
+		let serialized = serialize_nachricht(&parsed).expect("serialize");
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
 	}
@@ -564,7 +564,7 @@ mod tests {
 	#[test]
 	fn roundtrip_lastgang() {
 		let parsed = parse_nachricht(&lastgang_edi()).unwrap();
-		let serialized = serialize_nachricht(&parsed);
+		let serialized = serialize_nachricht(&parsed).expect("serialize");
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
 	}
@@ -581,7 +581,7 @@ mod tests {
 	#[test]
 	fn roundtrip_aggregierte_zeitreihen() {
 		let parsed = parse_nachricht(&aggregierte_zeitreihen_edi()).unwrap();
-		let serialized = serialize_nachricht(&parsed);
+		let serialized = serialize_nachricht(&parsed).expect("serialize");
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
 	}
@@ -598,7 +598,7 @@ mod tests {
 	#[test]
 	fn roundtrip_mehr_mindermengen() {
 		let parsed = parse_nachricht(&mehr_mindermengen_edi()).unwrap();
-		let serialized = serialize_nachricht(&parsed);
+		let serialized = serialize_nachricht(&parsed).expect("serialize");
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
 	}
@@ -615,7 +615,7 @@ mod tests {
 	#[test]
 	fn roundtrip_einspeise_messwerte() {
 		let parsed = parse_nachricht(&einspeise_messwerte_edi()).unwrap();
-		let serialized = serialize_nachricht(&parsed);
+		let serialized = serialize_nachricht(&parsed).expect("serialize");
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
 	}
@@ -632,7 +632,7 @@ mod tests {
 	#[test]
 	fn roundtrip_nominierung() {
 		let parsed = parse_nachricht(&nominierung_edi()).unwrap();
-		let serialized = serialize_nachricht(&parsed);
+		let serialized = serialize_nachricht(&parsed).expect("serialize");
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
 	}
@@ -649,7 +649,7 @@ mod tests {
 	#[test]
 	fn roundtrip_nominierung_bestaetigung() {
 		let parsed = parse_nachricht(&nominierung_bestaetigung_edi()).unwrap();
-		let serialized = serialize_nachricht(&parsed);
+		let serialized = serialize_nachricht(&parsed).expect("serialize");
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
 	}
@@ -666,7 +666,7 @@ mod tests {
 	#[test]
 	fn roundtrip_renominierung() {
 		let parsed = parse_nachricht(&renominierung_edi()).unwrap();
-		let serialized = serialize_nachricht(&parsed);
+		let serialized = serialize_nachricht(&parsed).expect("serialize");
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
 	}
@@ -683,7 +683,7 @@ mod tests {
 	#[test]
 	fn roundtrip_brennwert() {
 		let parsed = parse_nachricht(&brennwert_edi()).unwrap();
-		let serialized = serialize_nachricht(&parsed);
+		let serialized = serialize_nachricht(&parsed).expect("serialize");
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
 	}

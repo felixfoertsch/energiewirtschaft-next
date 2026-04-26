@@ -50,9 +50,12 @@ pub fn parse_nachricht(input: &str) -> Result<Nachricht, CodecFehler> {
 	}
 }
 
-/// Serialize a typed Nachricht to an EDIFACT string.
-pub fn serialize_nachricht(nachricht: &Nachricht) -> String {
-	match &nachricht.payload {
+/// Serialize a typed Nachricht to its wire representation.
+///
+/// EDIFACT payloads round-trip through the EDIFACT serializer; Redispatch 2.0
+/// (RD2.0) payloads are XML-based and route through `crate::xml::serializer`.
+pub fn serialize_nachricht(nachricht: &Nachricht) -> Result<String, CodecFehler> {
+	let s = match &nachricht.payload {
 		NachrichtenPayload::UtilmdAnmeldung(p) => serialize_utilmd_anmeldung(nachricht, p),
 		NachrichtenPayload::UtilmdBestaetigung(p) => serialize_utilmd_bestaetigung(nachricht, p),
 		NachrichtenPayload::UtilmdAbmeldung(p) => serialize_utilmd_abmeldung(nachricht, p),
@@ -152,9 +155,10 @@ pub fn serialize_nachricht(nachricht: &Nachricht) -> String {
 		NachrichtenPayload::UtiltsZaehlzeitdefinition(p) => {
 			serialize_utilts_zaehlzeitdefinition(nachricht, p)
 		}
-		// Redispatch 2.0 (XML-based, not EDIFACT)
-		_ => unimplemented!("serialize_nachricht: payload type not yet supported (Redispatch 2.0 uses XML)"),
-	}
+		// Redispatch 2.0 (XML-based, not EDIFACT) — delegate to the XML serializer.
+		_ => return crate::xml::serializer::serialize_xml(nachricht),
+	};
+	Ok(s)
 }
 
 // ---------------------------------------------------------------------------

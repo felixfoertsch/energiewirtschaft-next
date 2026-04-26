@@ -44,7 +44,7 @@ pub fn pruefe_kette(kette: &Kette) {
 		);
 
 		// 3. Roundtrip: serialize -> re-parse -> compare
-		let serialized = serialize_nachricht(&parsed);
+		let serialized = serialize_nachricht(&parsed).expect("serialize");
 		let reparsed = parse_nachricht(&serialized).unwrap_or_else(|e| {
 			panic!(
 				"Kette '{}' Schritt {}: roundtrip parse failed: {e}",

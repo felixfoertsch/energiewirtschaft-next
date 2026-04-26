@@ -70,7 +70,7 @@ mod tests {
 	#[test]
 	fn roundtrip_angebot() {
 		let parsed = parse_nachricht(&angebot_edi()).unwrap();
-		let serialized = serialize_nachricht(&parsed);
+		let serialized = serialize_nachricht(&parsed).expect("serialize");
 		let reparsed = parse_nachricht(&serialized).unwrap();
 		assert_eq!(reparsed, parsed);
 	}
