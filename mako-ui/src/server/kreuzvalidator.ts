@@ -52,8 +52,8 @@ export function kreuzvalidiere(edifactRoh: string): KreuzvalidierungErgebnis {
 	}
 }
 
-export function registerRoutes(app: Express): void {
-	app.post("/api/kreuzvalidiere", (req: Request, res: Response) => {
+export function registerRoutes(app: Express, API: string): void {
+	app.post(`${API}/kreuzvalidiere`, (req: Request, res: Response) => {
 		const { edifact } = req.body ?? {};
 		if (typeof edifact !== "string" || edifact.length === 0) {
 			res.status(400).json({ error: "edifact string required" });
@@ -63,7 +63,7 @@ export function registerRoutes(app: Express): void {
 		res.json(ergebnis);
 	});
 
-	app.get("/api/kreuzvalidator-status", (_req: Request, res: Response) => {
+	app.get(`${API}/kreuzvalidator-status`, (_req: Request, res: Response) => {
 		res.json({ verfuegbar: isAvailable() });
 	});
 }

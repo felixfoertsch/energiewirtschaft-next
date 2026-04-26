@@ -9,6 +9,8 @@ Environment=PORT=3010
 Environment=MAKO_ALLOWED_ORIGINS=https://serve.uber.space
 Environment=MAKO_CLI_PATH=@REPO_ROOT@/target/release/mako-cli
 Environment=MAKO_MARKT_PATH=@REPO_ROOT@/mako-ui/markt
+# Apache strips /ewn/api before routing to this port, so routes mount at /.
+Environment=API_PREFIX=
 ExecStart=/usr/bin/bun run src/server/index.ts
 Restart=on-failure
 RestartSec=2

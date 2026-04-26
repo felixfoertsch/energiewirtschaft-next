@@ -31,6 +31,12 @@ app.use(express.json());
 const MARKT = resolve(process.env["MAKO_MARKT_PATH"] ?? "markt");
 const CLI = resolve(process.env["MAKO_CLI_PATH"] ?? "../target/debug/mako-cli");
 
+// Route prefix. Default "/api" matches the local-dev shape (vite proxies
+// /api → port 3001). When deployed behind an Apache web backend that strips
+// a path prefix (e.g. "/ewn/api" → port 3010 with --remove-prefix), set
+// API_PREFIX="" so routes mount at the root.
+const API = process.env["API_PREFIX"] ?? "/api";
+
 function cli(args: string[]): string {
 	return execFileSync(CLI, args, { encoding: "utf-8", timeout: 10_000 });
 }
@@ -101,7 +107,7 @@ function nachrichtMeta(rolle: string, box: string, datei: string) {
 
 // --- Routes ---
 
-app.get("/api/rollen", (_req: Request, res: Response) => {
+app.get(`${API}/rollen`, (_req: Request, res: Response) => {
 	const dirs = readdirSync(MARKT).filter((d) => {
 		const p = join(MARKT, d);
 		return statSync(p).isDirectory() && d !== "log";
@@ -114,7 +120,7 @@ app.get("/api/rollen", (_req: Request, res: Response) => {
 	res.json(rollen);
 });
 
-app.get("/api/rollen/:rolle/inbox", (req: Request, res: Response) => {
+app.get(`${API}/rollen/:rolle/inbox`, (req: Request, res: Response) => {
 	try {
 		const rolle = param(req, "rolle");
 		const dir = safeMarktPath(rolle, "inbox");
@@ -128,7 +134,7 @@ app.get("/api/rollen/:rolle/inbox", (req: Request, res: Response) => {
 	}
 });
 
-app.get("/api/rollen/:rolle/outbox", (req: Request, res: Response) => {
+app.get(`${API}/rollen/:rolle/outbox`, (req: Request, res: Response) => {
 	try {
 		const rolle = param(req, "rolle");
 		const dir = safeMarktPath(rolle, "outbox");
@@ -142,7 +148,7 @@ app.get("/api/rollen/:rolle/outbox", (req: Request, res: Response) => {
 	}
 });
 
-app.get("/api/rollen/:rolle/state", (req: Request, res: Response) => {
+app.get(`${API}/rollen/:rolle/state`, (req: Request, res: Response) => {
 	try {
 		const rolle = param(req, "rolle");
 		const state = readJsonSafe(safeMarktPath(rolle, "state.json"));
@@ -152,7 +158,7 @@ app.get("/api/rollen/:rolle/state", (req: Request, res: Response) => {
 	}
 });
 
-app.get("/api/nachrichten/:rolle/:box/:datei", (req: Request, res: Response) => {
+app.get(`${API}/nachrichten/:rolle/:box/:datei`, (req: Request, res: Response) => {
 	let filePath: string;
 	let rolle: string;
 	let box: string;
@@ -184,7 +190,7 @@ app.get("/api/nachrichten/:rolle/:box/:datei", (req: Request, res: Response) => 
 	res.json({ meta, inhalt, edifact });
 });
 
-app.get("/api/status", (_req: Request, res: Response) => {
+app.get(`${API}/status`, (_req: Request, res: Response) => {
 	try {
 		const output = cli(["status", MARKT]);
 		res.json({ ok: true, ausgabe: output });
@@ -193,7 +199,7 @@ app.get("/api/status", (_req: Request, res: Response) => {
 	}
 });
 
-app.post("/api/sende", (req: Request, res: Response) => {
+app.post(`${API}/sende`, (req: Request, res: Response) => {
 	const { von, datei, an } = req.body;
 	if (!isSafeSegment(String(von)) || !isSafeSegment(String(an)) || !isSafeSegment(String(datei))) {
 		badRequest(res, new Error("ungültige Parameter (von/an/datei)"));
@@ -207,7 +213,7 @@ app.post("/api/sende", (req: Request, res: Response) => {
 	}
 });
 
-app.post("/api/verarbeite", (req: Request, res: Response) => {
+app.post(`${API}/verarbeite`, (req: Request, res: Response) => {
 	const { rolle, datei } = req.body;
 	let filePath: string;
 	try {
@@ -224,7 +230,7 @@ app.post("/api/verarbeite", (req: Request, res: Response) => {
 	}
 });
 
-app.post("/api/verarbeite-alle", (req: Request, res: Response) => {
+app.post(`${API}/verarbeite-alle`, (req: Request, res: Response) => {
 	const { rolle } = req.body;
 	if (!isSafeSegment(String(rolle))) {
 		badRequest(res, new Error("ungültige Rolle"));
@@ -238,7 +244,7 @@ app.post("/api/verarbeite-alle", (req: Request, res: Response) => {
 	}
 });
 
-app.post("/api/nachrichten/:rolle", (req: Request, res: Response) => {
+app.post(`${API}/nachrichten/:rolle`, (req: Request, res: Response) => {
 	const rolle = param(req, "rolle");
 	const payload = req.body;
 	const typRaw = payload.typ ?? "nachricht";
@@ -264,13 +270,13 @@ app.post("/api/nachrichten/:rolle", (req: Request, res: Response) => {
 
 // --- Kreuzvalidator (STROMDAO sidecar) ---
 
-registerKreuzvalidatorRoutes(app);
+registerKreuzvalidatorRoutes(app, API);
 
 // --- Verification routes ---
 
 const REFERENZDATEN = resolve("../mako-verify/referenzdaten");
 
-app.get("/api/verifiziere/:rolle/:box/:datei", (req: Request, res: Response) => {
+app.get(`${API}/verifiziere/:rolle/:box/:datei`, (req: Request, res: Response) => {
 	let filePath: string;
 	try {
 		const rolle = param(req, "rolle");
@@ -303,7 +309,7 @@ const BATCH_ROOTS: Record<string, string> = {
 	simulation: resolve("../mako-sim/simulation/nachrichten"),
 };
 
-app.post("/api/verifiziere-batch", (req: Request, res: Response) => {
+app.post(`${API}/verifiziere-batch`, (req: Request, res: Response) => {
 	const { verzeichnis } = req.body ?? {};
 	const key = typeof verzeichnis === "string" && verzeichnis.length > 0 ? verzeichnis : "markt";
 	const dir = BATCH_ROOTS[key];
@@ -326,7 +332,7 @@ app.post("/api/verifiziere-batch", (req: Request, res: Response) => {
 	}
 });
 
-app.post("/api/verifiziere-schritt", (req: Request, res: Response) => {
+app.post(`${API}/verifiziere-schritt`, (req: Request, res: Response) => {
 	const { rolle, datei } = req.body ?? {};
 	if (!rolle || !datei) {
 		res.status(400).json({ error: "rolle und datei erforderlich" });
@@ -374,7 +380,7 @@ app.post("/api/verifiziere-schritt", (req: Request, res: Response) => {
 
 const clients: Set<Response> = new Set();
 
-app.get("/api/events", (_req: Request, res: Response) => {
+app.get(`${API}/events`, (_req: Request, res: Response) => {
 	res.writeHead(200, {
 		"Content-Type": "text/event-stream",
 		"Cache-Control": "no-cache",
