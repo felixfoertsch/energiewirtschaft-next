@@ -41,6 +41,20 @@ function cli(args: string[]): string {
 	return execFileSync(CLI, args, { encoding: "utf-8", timeout: 10_000 });
 }
 
+function cliWithStdin(args: string[], stdin: string): string {
+	return execFileSync(CLI, args, {
+		encoding: "utf-8",
+		timeout: 10_000,
+		input: stdin,
+	});
+}
+
+// Payload type names match Rust enum variants in mako_types::nachricht::
+// NachrichtenPayload — strictly PascalCase letters (and a digit suffix in
+// the rare case there's e.g. `Rd2*`). Anything else means injection attempt.
+const PAYLOAD_TYP = /^[A-Za-z][A-Za-z0-9]*$/;
+const MP_ID = /^[0-9]{13}$/;
+
 function readJsonSafe(path: string): unknown {
 	if (!existsSync(path)) return {};
 	return JSON.parse(readFileSync(path, "utf-8"));
@@ -123,6 +137,85 @@ app.get(`${API}/prozesse`, (_req: Request, res: Response) => {
 		res.json(prozesseFromCli());
 	} catch (e) {
 		res.status(500).json({ error: `Prozesskatalog nicht ladbar: ${String(e)}` });
+	}
+});
+
+// Per-payload JSON schema. Cached per typ for the process lifetime — the
+// schema only changes when the engine recompiles.
+const schemaCache = new Map<string, unknown>();
+
+app.get(`${API}/schema/:typ`, (req: Request, res: Response) => {
+	const typ = param(req, "typ");
+	if (!PAYLOAD_TYP.test(typ)) {
+		badRequest(res, new Error(`ungültiger Payload-Typ: ${JSON.stringify(typ)}`));
+		return;
+	}
+	const cached = schemaCache.get(typ);
+	if (cached !== undefined) {
+		res.json(cached);
+		return;
+	}
+	try {
+		const ausgabe = cli(["schema-json", "--typ", typ]);
+		const schema = JSON.parse(ausgabe);
+		schemaCache.set(typ, schema);
+		res.json(schema);
+	} catch (e) {
+		res.status(404).json({ error: `Schema für ${typ} nicht verfügbar: ${String(e)}` });
+	}
+});
+
+// Build a wire message from JSON form data, validate it via the engine
+// (parse → codec → AHB), and write to the sender's outbox.
+app.post(`${API}/erstelle-validiert`, (req: Request, res: Response) => {
+	const { rolle, empfaenger, empfaenger_id, typ, fields } = req.body ?? {};
+
+	if (!isSafeSegment(String(rolle))) {
+		badRequest(res, new Error("ungültige Sender-Rolle"));
+		return;
+	}
+	if (!isSafeSegment(String(empfaenger))) {
+		badRequest(res, new Error("ungültige Empfänger-Rolle"));
+		return;
+	}
+	if (!PAYLOAD_TYP.test(String(typ))) {
+		badRequest(res, new Error(`ungültiger Payload-Typ: ${JSON.stringify(typ)}`));
+		return;
+	}
+	if (!MP_ID.test(String(empfaenger_id))) {
+		badRequest(res, new Error("empfaenger_id muss 13-stellige MP-ID sein"));
+		return;
+	}
+	if (typeof fields !== "object" || fields === null) {
+		badRequest(res, new Error("fields muss ein Objekt sein"));
+		return;
+	}
+
+	const stdin = JSON.stringify({
+		empfaenger_slug: empfaenger,
+		empfaenger_id,
+		typ,
+		fields,
+	});
+
+	try {
+		const ausgabe = cliWithStdin(
+			["erstelle-nachricht", "--rolle", String(rolle), "--markt", MARKT],
+			stdin,
+		);
+		const result = JSON.parse(ausgabe);
+		// Strip the absolute path from `datei` so the frontend gets just the
+		// filename it can pass to /api/nachrichten and /api/sende.
+		if (typeof result.datei === "string") {
+			result.datei = result.datei.split("/").pop() ?? result.datei;
+		}
+		res.json(result);
+	} catch (e) {
+		res.status(400).json({
+			ok: false,
+			wire_format: "",
+			fehler: `Erstellen fehlgeschlagen: ${String(e)}`,
+		});
 	}
 });
 
