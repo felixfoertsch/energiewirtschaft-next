@@ -107,6 +107,10 @@ pub struct VerifikationsErgebnis {
 	pub ebd: Option<EbdErgebnis>,
 	pub interop: Option<InteropErgebnis>,
 	pub gesamt_urteil: Urteil,
+	/// Error detail when verification could not be performed (parse failure,
+	/// unreadable file, etc.). `None` for successful verifications.
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub fehler: Option<String>,
 }
 
 // ---------------------------------------------------------------------------

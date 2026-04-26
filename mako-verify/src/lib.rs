@@ -29,7 +29,7 @@ pub fn verifiziere_nachricht(
 	// parse the interchange
 	let interchange = match parse_interchange(edifact_roh) {
 		Ok(ic) => ic,
-		Err(_) => {
+		Err(e) => {
 			return VerifikationsErgebnis {
 				datei: String::new(),
 				nachrichtentyp: String::new(),
@@ -38,6 +38,7 @@ pub fn verifiziere_nachricht(
 				ebd: None,
 				interop: None,
 				gesamt_urteil: Urteil::NichtPruefbar,
+				fehler: Some(format!("EDIFACT-Parse fehlgeschlagen: {e}")),
 			};
 		}
 	};
@@ -51,6 +52,7 @@ pub fn verifiziere_nachricht(
 			ebd: None,
 			interop: None,
 			gesamt_urteil: Urteil::NichtPruefbar,
+			fehler: Some("Interchange enthält keine Nachrichten".to_string()),
 		};
 	}
 
@@ -81,11 +83,39 @@ pub fn verifiziere_nachricht(
 		validiere_nachricht_ahb(edifact_msg, pi, &nachrichtentyp, refdata)
 	});
 
-	// Layer 3 prep: extract key fields via typed parse
-	// (best-effort — if typed parse fails we skip interop)
-	let _schluesselfelder = mako_codec::edifact::dispatch::parse_nachricht(edifact_roh)
-		.ok()
-		.map(|n| extrahiere_schluesselfelder(&n));
+	// Layer 3: typed parse + key-field extraction. Without a third-party
+	// reference parser to compare against, we still report whether OUR parser
+	// accepted the message and which key fields it surfaced — this turns
+	// "no third-party available" into observable data instead of a missing tab.
+	let interop = match mako_codec::edifact::dispatch::parse_nachricht(edifact_roh) {
+		Ok(n) => {
+			let felder = extrahiere_schluesselfelder(&n);
+			let mut feldvergleiche: Vec<crate::bericht::InteropFeldVergleich> = felder
+				.into_iter()
+				.map(|(feld, unser_wert)| crate::bericht::InteropFeldVergleich {
+					feld,
+					unser_wert: Some(unser_wert),
+					drittanbieter_wert: None,
+					stimmt_ueberein: false,
+				})
+				.collect();
+			feldvergleiche.sort_by(|a, b| a.feld.cmp(&b.feld));
+			Some(crate::bericht::InteropErgebnis {
+				parse_ok_unser: true,
+				parse_ok_drittanbieter: false,
+				roundtrip_ok: false,
+				feldvergleiche,
+				urteil: Urteil::NichtPruefbar,
+			})
+		}
+		Err(_) => Some(crate::bericht::InteropErgebnis {
+			parse_ok_unser: false,
+			parse_ok_drittanbieter: false,
+			roundtrip_ok: false,
+			feldvergleiche: Vec::new(),
+			urteil: Urteil::Fehlgeschlagen,
+		}),
+	};
 
 	// compute overall verdict from AHB result
 	let gesamt_urteil = match &ahb {
@@ -99,8 +129,9 @@ pub fn verifiziere_nachricht(
 		pruefidentifikator,
 		ahb,
 		ebd: None,
-		interop: None,
+		interop,
 		gesamt_urteil,
+		fehler: None,
 	}
 }
 
@@ -136,6 +167,7 @@ pub fn verifiziere_prozess_schritt(
 		ebd: Some(ebd_ergebnis),
 		interop: None,
 		gesamt_urteil,
+		fehler: None,
 	}
 }
 
@@ -148,11 +180,22 @@ pub fn verifiziere_batch(
 
 	let ergebnisse: Vec<VerifikationsErgebnis> = edi_dateien
 		.iter()
-		.filter_map(|pfad| {
-			let inhalt = std::fs::read_to_string(pfad).ok()?;
-			let mut ergebnis = verifiziere_nachricht(&inhalt, refdata);
-			ergebnis.datei = pfad.display().to_string();
-			Some(ergebnis)
+		.map(|pfad| match std::fs::read_to_string(pfad) {
+			Ok(inhalt) => {
+				let mut ergebnis = verifiziere_nachricht(&inhalt, refdata);
+				ergebnis.datei = pfad.display().to_string();
+				ergebnis
+			}
+			Err(e) => VerifikationsErgebnis {
+				datei: pfad.display().to_string(),
+				nachrichtentyp: String::new(),
+				pruefidentifikator: None,
+				ahb: None,
+				ebd: None,
+				interop: None,
+				gesamt_urteil: Urteil::NichtPruefbar,
+				fehler: Some(format!("Datei nicht lesbar: {e}")),
+			},
 		})
 		.collect();
 

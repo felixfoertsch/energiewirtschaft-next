@@ -9,6 +9,7 @@ fn ergebnis_mit_urteil(urteil: Urteil) -> VerifikationsErgebnis {
 		ebd: None,
 		interop: None,
 		gesamt_urteil: urteil,
+		fehler: None,
 	}
 }
 

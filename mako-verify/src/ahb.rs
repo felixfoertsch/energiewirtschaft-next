@@ -339,10 +339,21 @@ fn wert_in_segment(edifact: &EdifactNachricht, tag: &str, wert: &str) -> bool {
 }
 
 /// Compute the overall verdict from individual field results.
+///
+/// Rules (strict — partial verdicts must not be silently promoted to Bestanden):
+/// 1. Any `Fehlgeschlagen` field → overall `Fehlgeschlagen`.
+/// 2. Otherwise, if any field is `NichtPruefbar` → overall `NichtPruefbar`
+///    (mixed Bestanden + NichtPruefbar = NichtPruefbar, because we cannot
+///    claim full conformance when some checks could not be evaluated).
+/// 3. All fields `Bestanden` → overall `Bestanden`.
+/// 4. Empty input → `NichtPruefbar`.
 fn gesamt_urteil(felder: &[AhbFeldErgebnis]) -> Urteil {
+	if felder.is_empty() {
+		return Urteil::NichtPruefbar;
+	}
 	if felder.iter().any(|f| f.urteil == Urteil::Fehlgeschlagen) {
 		Urteil::Fehlgeschlagen
-	} else if felder.iter().all(|f| f.urteil == Urteil::NichtPruefbar) {
+	} else if felder.iter().any(|f| f.urteil == Urteil::NichtPruefbar) {
 		Urteil::NichtPruefbar
 	} else {
 		Urteil::Bestanden
