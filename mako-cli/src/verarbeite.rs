@@ -452,7 +452,7 @@ mod tests {
 
 		// Generate a UtilmdAnmeldung from lieferant_neu (index 0) to netzbetreiber (index 1)
 		let lieferbeginn = NaiveDate::from_ymd_opt(2027, 1, 1).unwrap();
-		let nachricht = mako_testdata::utilmd::anmeldung(lieferbeginn);
+		let _nachricht = mako_testdata::utilmd::anmeldung(lieferbeginn);
 
 		// The testdata uses mp_id(1) as LFN and mp_id(2) as NB.
 		// Our init uses index 0 = lieferant_neu and index 1 = netzbetreiber.

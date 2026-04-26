@@ -1,14 +1,9 @@
 use clap::{Parser, Subcommand};
 
-mod event_mapping;
-mod init;
-mod prozesse_json;
-mod sende;
-mod state_store;
-mod status;
-mod verarbeite;
-mod verifiziere;
-mod verifiziere_batch;
+use mako_cli::{
+	erstelle_nachricht, init, prozesse_json, schema_json, sende, status, verarbeite, verifiziere,
+	verifiziere_batch,
+};
 
 #[derive(Parser)]
 #[command(name = "mako", about = "MaKo-Simulator CLI")]
@@ -77,6 +72,21 @@ enum Commands {
 	},
 	/// Print the engine's process catalog as JSON (for the test UI)
 	ProzesseJson,
+	/// Print the JSON schema for a payload type
+	SchemaJson {
+		/// Payload type name, e.g. UtilmdAnmeldung
+		#[arg(long)]
+		typ: String,
+	},
+	/// Build a wire message from JSON fields and write it to the sender outbox
+	ErstelleNachricht {
+		/// Active sender role slug, e.g. lieferant_neu
+		#[arg(long)]
+		rolle: String,
+		/// Path to the markt directory
+		#[arg(long)]
+		markt: String,
+	},
 }
 
 fn main() {
@@ -120,5 +130,17 @@ fn main() {
 			}
 		}
 		Commands::ProzesseJson => prozesse_json::run(),
+		Commands::SchemaJson { typ } => {
+			if let Err(e) = schema_json::run(&typ) {
+				eprintln!("Fehler: {e}");
+				std::process::exit(1);
+			}
+		}
+		Commands::ErstelleNachricht { rolle, markt } => {
+			if let Err(e) = erstelle_nachricht::run(&rolle, &markt) {
+				eprintln!("Fehler: {e}");
+				std::process::exit(1);
+			}
+		}
 	}
 }
