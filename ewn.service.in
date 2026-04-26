@@ -1,0 +1,17 @@
+[Unit]
+Description=EWN — Energiewirtschaft Next API server (mako-ui)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=@REPO_ROOT@/mako-ui
+Environment=PORT=3010
+Environment=MAKO_ALLOWED_ORIGINS=https://serve.uber.space
+Environment=MAKO_CLI_PATH=@REPO_ROOT@/target/release/mako-cli
+Environment=MAKO_MARKT_PATH=@REPO_ROOT@/mako-ui/markt
+ExecStart=/usr/bin/bun run src/server/index.ts
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

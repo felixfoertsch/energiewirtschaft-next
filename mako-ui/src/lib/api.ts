@@ -1,6 +1,9 @@
 import type { BatchErgebnis, MarktStatus, NachrichtMeta, Rolle, VerifikationsErgebnis } from "./types.ts";
 
-const BASE = "/api";
+// Derive the API base from Vite's `import.meta.env.BASE_URL` so a path-prefixed
+// deployment (e.g. base "/ewn/") routes API + SSE through "/ewn/api" while a
+// default deployment stays at "/api".
+const BASE = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/api`;
 
 async function get<T>(path: string): Promise<T> {
 	const res = await fetch(`${BASE}${path}`);
