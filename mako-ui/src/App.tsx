@@ -28,14 +28,16 @@ export function App() {
 	const [showForm, setShowForm] = useState(false);
 	const [batchErgebnis, setBatchErgebnis] = useState<BatchErgebnis | null>(null);
 	const [batchLoading, setBatchLoading] = useState(false);
+	const [serverError, setServerError] = useState<string | null>(null);
 
 	const loadRollen = useCallback(async () => {
 		try {
 			const r = await api.rollen();
+			setServerError(null);
 			setRollen(r);
 			if (r.length > 0 && !aktiveRolle) setAktiveRolle(r[0].name);
-		} catch {
-			/* server not ready */
+		} catch (e) {
+			setServerError(`Server nicht erreichbar (rollen): ${String(e)}`);
 		}
 	}, [aktiveRolle]);
 
@@ -47,28 +49,34 @@ export function App() {
 				api.outbox(aktiveRolle),
 				api.state(aktiveRolle),
 			]);
+			setServerError(null);
 			setInbox(i);
 			setOutbox(o);
 			setRolleState(s as Record<string, unknown>);
-		} catch {
-			/* server not ready */
+		} catch (e) {
+			setServerError(`Nachrichten konnten nicht geladen werden: ${String(e)}`);
 		}
 	}, [aktiveRolle]);
 
 	const loadUnreadCounts = useCallback(async () => {
 		if (rollen.length === 0) return;
 		const counts: Record<string, number> = {};
+		const errors: string[] = [];
 		await Promise.all(
 			rollen.map(async (r) => {
 				try {
 					const msgs = await api.inbox(r.name);
 					counts[r.name] = msgs.filter((m) => !m.status.verarbeitet).length;
-				} catch {
+				} catch (e) {
 					counts[r.name] = 0;
+					errors.push(`${r.name}: ${String(e)}`);
 				}
 			}),
 		);
 		setUnreadCounts(counts);
+		if (errors.length > 0) {
+			setServerError(`Fehler beim Lesen einzelner Inboxen: ${errors.join("; ")}`);
+		}
 	}, [rollen]);
 
 	useEffect(() => {
@@ -123,7 +131,7 @@ export function App() {
 							const result = await api.verifiziereBatch();
 							setBatchErgebnis(result);
 						} catch (e) {
-							console.error("Batch-Verifikation fehlgeschlagen:", e);
+							setServerError(`Batch-Verifikation fehlgeschlagen: ${String(e)}`);
 						} finally {
 							setBatchLoading(false);
 						}
@@ -132,6 +140,22 @@ export function App() {
 					{batchLoading ? "Verifiziere..." : "Simulation verifizieren"}
 				</Button>
 			</header>
+
+			{serverError && (
+				<div
+					role="alert"
+					className="flex items-center justify-between border-b border-destructive/30 bg-destructive/10 px-6 py-2 text-destructive text-xs"
+				>
+					<span>{serverError}</span>
+					<button
+						type="button"
+						className="text-xs underline-offset-2 hover:underline"
+						onClick={() => setServerError(null)}
+					>
+						schließen
+					</button>
+				</div>
+			)}
 
 			<RollenTabs
 				rollen={rollen}

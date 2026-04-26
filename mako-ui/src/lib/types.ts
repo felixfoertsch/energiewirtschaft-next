@@ -119,6 +119,8 @@ export interface VerifikationsErgebnis {
 	ebd: EbdErgebnis | null;
 	interop: InteropErgebnis | null;
 	gesamt_urteil: Urteil;
+	/** Present when verification could not run (parse/IO failure). */
+	fehler?: string;
 }
 
 export interface BatchErgebnis {

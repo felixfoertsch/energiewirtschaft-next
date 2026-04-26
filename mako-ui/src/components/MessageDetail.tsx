@@ -25,6 +25,7 @@ interface DetailData {
 
 export function MessageDetail({ rolle, box, datei, onRolleSwitch, onVerarbeitet }: MessageDetailProps) {
 	const [data, setData] = useState<DetailData | null>(null);
+	const [loadError, setLoadError] = useState<string | null>(null);
 	const [showEdifact, setShowEdifact] = useState(false);
 	const [showJson, setShowJson] = useState(false);
 	const [verarbeitung, setVerarbeitung] = useState<string | null>(null);
@@ -33,15 +34,26 @@ export function MessageDetail({ rolle, box, datei, onRolleSwitch, onVerarbeitet 
 
 	useEffect(() => {
 		let cancelled = false;
+		setData(null);
+		setLoadError(null);
 		setVerifikation(null);
 		setVerifikationLoading(false);
-		api.nachricht(rolle, box, datei).then((d) => {
-			if (!cancelled) setData(d);
-		});
+		api.nachricht(rolle, box, datei).then(
+			(d) => {
+				if (!cancelled) setData(d);
+			},
+			(e: unknown) => {
+				if (!cancelled) setLoadError(String(e));
+			},
+		);
 		return () => {
 			cancelled = true;
 		};
 	}, [rolle, box, datei]);
+
+	if (loadError) {
+		return <p className="p-4 text-destructive text-sm">Fehler beim Laden: {loadError}</p>;
+	}
 
 	if (!data) {
 		return <p className="p-4 text-muted-foreground text-sm">Lade...</p>;
@@ -95,7 +107,7 @@ export function MessageDetail({ rolle, box, datei, onRolleSwitch, onVerarbeitet 
 					{/* Zeitpunkt */}
 					{meta.zeitpunkt && (
 						<p className="text-muted-foreground text-xs">
-							{new Date(meta.zeitpunkt).toLocaleString("de-DE")}
+							{formatIso(meta.zeitpunkt)}
 						</p>
 					)}
 
@@ -201,4 +213,10 @@ function tryFormatJson(s: string): string {
 	} catch {
 		return s;
 	}
+}
+
+function formatIso(iso: string): string {
+	const d = new Date(iso);
+	const pad = (n: number) => String(n).padStart(2, "0");
+	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
