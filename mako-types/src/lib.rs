@@ -8,5 +8,6 @@ pub mod gpke_nachrichten;
 pub mod nachricht;
 pub mod pruefidentifikator;
 pub mod querschnitt;
+pub mod katalog;
 pub mod reducer;
 pub mod version;

@@ -125,6 +125,50 @@ impl MarktRolle {
 		}
 	}
 
+	/// Stable filesystem/wire slug — same identifiers `mako-cli init` uses
+	/// for role directory names. Keep in sync with `mako-cli/src/init.rs::ROLLEN`.
+	pub fn slug(&self) -> &'static str {
+		use MarktRolle::*;
+		match self {
+			Lieferant => "lieferant",
+			LieferantNeu => "lieferant_neu",
+			LieferantAlt => "lieferant_alt",
+			LieferantErsatzGrundversorgung => "lieferant_ersatz_grundversorgung",
+			Netzbetreiber => "netzbetreiber",
+			NetzbetreiberAlt => "netzbetreiber_alt",
+			NetzbetreiberNeu => "netzbetreiber_neu",
+			Anschlussnetzbetreiber => "anschlussnetzbetreiber",
+			AnfordernderNetzbetreiber => "anfordernder_netzbetreiber",
+			Uebertragungsnetzbetreiber => "uebertragungsnetzbetreiber",
+			Fernleitungsnetzbetreiber => "fernleitungsnetzbetreiber",
+			Messstellenbetreiber => "messstellenbetreiber",
+			MessstellenbetreiberAlt => "messstellenbetreiber_alt",
+			MessstellenbetreiberNeu => "messstellenbetreiber_neu",
+			GrundzustaendigerMessstellenbetreiber => "grundzustaendiger_messstellenbetreiber",
+			WettbewerblicherMessstellenbetreiber => "wettbewerblicher_messstellenbetreiber",
+			Messdienstleister => "messdienstleister",
+			Bilanzkreisverantwortlicher => "bilanzkreisverantwortlicher",
+			Bilanzkoordinator => "bilanzkoordinator",
+			Marktgebietsverantwortlicher => "marktgebietsverantwortlicher",
+			BetreiberTechnischeRessource => "betreiber_technische_ressource",
+			Einsatzverantwortlicher => "einsatzverantwortlicher",
+			DataProvider => "data_provider",
+			BetreiberErzeugungsanlage => "betreiber_erzeugungsanlage",
+			Direktvermarkter => "direktvermarkter",
+			Energieserviceanbieter => "energieserviceanbieter",
+			Aggregator => "aggregator",
+			Ladepunktbetreiber => "ladepunktbetreiber",
+			RegisterbetreiberHknr => "registerbetreiber_hknr",
+			Transportkunde => "transportkunde",
+			Kapazitaetsnutzer => "kapazitaetsnutzer",
+			Speicherstellenbetreiber => "speicherstellenbetreiber",
+			Einspeisenetzbetreiber => "einspeisenetzbetreiber",
+			Ausspeisenetzbetreiber => "ausspeisenetzbetreiber",
+			Rechnungsersteller => "rechnungsersteller",
+			Rechnungsempfaenger => "rechnungsempfaenger",
+		}
+	}
+
 	/// Official BDEW/BNetzA shorthand used in AHB/EBD reference data.
 	pub fn kuerzel(&self) -> &'static str {
 		use MarktRolle::*;
