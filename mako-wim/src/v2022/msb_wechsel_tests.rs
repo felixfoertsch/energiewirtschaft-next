@@ -3,6 +3,7 @@ use chrono::NaiveDate;
 use mako_types::fehler::ProzessFehler;
 use mako_types::gpke_nachrichten::{AblehnungsGrund, UtilmdMsbWechselAnmeldung};
 use mako_types::ids::{MeLoId, MarktpartnerId};
+use mako_types::rolle::MarktRolle::*;
 
 use super::msb_wechsel::{MsbWechselEvent, MsbWechselState, reduce};
 
@@ -11,6 +12,12 @@ fn melo() -> MeLoId {
 }
 fn msb_neu_id() -> MarktpartnerId {
 	MarktpartnerId::new("9900000000027").unwrap()
+}
+fn msb_alt_id() -> MarktpartnerId {
+	MarktpartnerId::new("9900000000028").unwrap()
+}
+fn nb_id() -> MarktpartnerId {
+	MarktpartnerId::new("9900000000010").unwrap()
 }
 fn wechseldatum() -> NaiveDate {
 	NaiveDate::from_ymd_opt(2024, 1, 1).unwrap()
@@ -31,13 +38,27 @@ fn full_happy_path() {
 	let out = reduce(MsbWechselState::Idle, MsbWechselEvent::AnmeldungEmpfangen(anmeldung()))
 		.expect("step 1");
 	assert!(matches!(out.state, MsbWechselState::AnmeldungEingegangen { .. }));
+	// MSB-Wechsel Anmeldung: MessstellenbetreiberNeu → Netzbetreiber
+	assert_eq!(out.nachrichten.len(), 1);
+	assert_eq!(out.nachrichten[0].absender_rolle, MessstellenbetreiberNeu);
+	assert_eq!(out.nachrichten[0].empfaenger_rolle, Netzbetreiber);
 
 	let out = reduce(out.state, MsbWechselEvent::NbBestaetigt).expect("step 2");
 	assert!(matches!(out.state, MsbWechselState::Bestaetigt { .. }));
+	// MSB-Wechsel Bestätigung: Netzbetreiber → MessstellenbetreiberNeu
 	assert_eq!(out.nachrichten.len(), 1);
+	assert_eq!(out.nachrichten[0].absender_rolle, Netzbetreiber);
+	assert_eq!(out.nachrichten[0].empfaenger_rolle, MessstellenbetreiberNeu);
+	assert_eq!(out.nachrichten[0].absender, nb_id());
+	assert_eq!(out.nachrichten[0].empfaenger, msb_neu_id());
 
 	let out = reduce(out.state, MsbWechselEvent::AbmeldungMsbAltInformiert).expect("step 3");
 	assert!(matches!(out.state, MsbWechselState::AbmeldungInformiert { .. }));
+	// MSB-Wechsel Abmeldung an alten MSB: Netzbetreiber → MessstellenbetreiberAlt
+	assert_eq!(out.nachrichten.len(), 1);
+	assert_eq!(out.nachrichten[0].absender_rolle, Netzbetreiber);
+	assert_eq!(out.nachrichten[0].empfaenger_rolle, MessstellenbetreiberAlt);
+	assert_eq!(out.nachrichten[0].empfaenger, msb_alt_id());
 
 	let out = reduce(
 		out.state,

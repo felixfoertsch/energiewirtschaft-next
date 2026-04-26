@@ -4,7 +4,7 @@ use mako_types::gpke_nachrichten::{AblehnungsGrund, UtilmdMsbWechselAnmeldung};
 use mako_types::ids::{MeLoId, MarktpartnerId};
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 use mako_types::reducer::ReducerOutput;
-use mako_types::rolle::MarktRolle;
+use mako_types::rolle::MarktRolle::*;
 
 /// WiM 2.1 MSB-Wechsel states
 #[derive(Debug, Clone, PartialEq)]
@@ -16,6 +16,12 @@ pub enum MsbWechselState {
 		wechseldatum: NaiveDate,
 	},
 	Bestaetigt {
+		melo: MeLoId,
+		msb_neu: MarktpartnerId,
+		wechseldatum: NaiveDate,
+	},
+	/// MSBN hat Konfigurationsdaten beim MSBA angefragt (optionaler Schritt nach Bestaetigt)
+	KonfigurationAngefragt {
 		melo: MeLoId,
 		msb_neu: MarktpartnerId,
 		wechseldatum: NaiveDate,
@@ -40,9 +46,19 @@ pub enum MsbWechselEvent {
 	AnmeldungEmpfangen(UtilmdMsbWechselAnmeldung),
 	NbBestaetigt,
 	NbAbgelehnt { grund: AblehnungsGrund },
+	/// MSBN fragt MSBA nach Konfigurationsdaten (MessstellenbetreiberNeu → MessstellenbetreiberAlt)
+	KonfigurationsanfrageGesendet,
 	AbmeldungMsbAltInformiert,
 	SchlusszaehlerstandEmpfangen { zaehlerstand: f64 },
 	FristUeberschritten,
+}
+
+fn nb() -> MarktpartnerId {
+	MarktpartnerId::new("9900000000010").expect("valid NB id")
+}
+
+fn msb_alt() -> MarktpartnerId {
+	MarktpartnerId::new("9900000000028").expect("valid MSBA id")
 }
 
 pub fn reduce(
@@ -50,30 +66,41 @@ pub fn reduce(
 	event: MsbWechselEvent,
 ) -> Result<ReducerOutput<MsbWechselState>, ProzessFehler> {
 	match (state, event) {
-		// 2.1.1: Idle + Anmeldung -> AnmeldungEingegangen
+		// 2.1.1: Idle + Anmeldung -> AnmeldungEingegangen (MSBN → NB)
 		(MsbWechselState::Idle, MsbWechselEvent::AnmeldungEmpfangen(anm)) => {
+			let nachricht = Nachricht {
+				absender: anm.msb_neu.clone(),
+				absender_rolle: MessstellenbetreiberNeu,
+				empfaenger: nb(),
+				empfaenger_rolle: Netzbetreiber,
+				pruef_id: None,
+				payload: NachrichtenPayload::UtilmdMsbWechselAnmeldung(UtilmdMsbWechselAnmeldung {
+					melo_id: anm.melo_id.clone(),
+					msb_neu: anm.msb_neu.clone(),
+					wechseldatum: anm.wechseldatum,
+				}),
+			};
 			Ok(ReducerOutput {
 				state: MsbWechselState::AnmeldungEingegangen {
 					melo: anm.melo_id,
 					msb_neu: anm.msb_neu,
 					wechseldatum: anm.wechseldatum,
 				},
-				nachrichten: vec![],
+				nachrichten: vec![nachricht],
 			})
 		}
 
-		// 2.1.2: AnmeldungEingegangen + NbBestaetigt -> Bestaetigt
+		// 2.1.2: AnmeldungEingegangen + NbBestaetigt -> Bestaetigt (NB → MSBN)
 		(
 			MsbWechselState::AnmeldungEingegangen { melo, msb_neu, wechseldatum },
 			MsbWechselEvent::NbBestaetigt,
 		) => {
-			let nb = MarktpartnerId::new("9900000000010").expect("valid NB id");
 			let nachricht = Nachricht {
-				absender: nb,
-				absender_rolle: MarktRolle::Netzbetreiber,
+				absender: nb(),
+				absender_rolle: Netzbetreiber,
 				empfaenger: msb_neu.clone(),
-				empfaenger_rolle: MarktRolle::Messstellenbetreiber,
-			pruef_id: None,
+				empfaenger_rolle: MessstellenbetreiberNeu,
+				pruef_id: None,
 				payload: NachrichtenPayload::UtilmdMsbWechselAnmeldung(
 					UtilmdMsbWechselAnmeldung {
 						melo_id: melo.clone(),
@@ -99,14 +126,78 @@ pub fn reduce(
 			})
 		}
 
-		// 2.1.3: Bestaetigt + AbmeldungMsbAltInformiert -> AbmeldungInformiert
+		// 2.1.2a: Bestaetigt + KonfigurationsanfrageGesendet -> KonfigurationAngefragt (MSBN → MSBA)
+		(
+			MsbWechselState::Bestaetigt { melo, msb_neu, wechseldatum },
+			MsbWechselEvent::KonfigurationsanfrageGesendet,
+		) => {
+			let nachricht = Nachricht {
+				absender: msb_neu.clone(),
+				absender_rolle: MessstellenbetreiberNeu,
+				empfaenger: msb_alt(),
+				empfaenger_rolle: MessstellenbetreiberAlt,
+				pruef_id: None,
+				payload: NachrichtenPayload::UtilmdMsbWechselAnmeldung(
+					UtilmdMsbWechselAnmeldung {
+						melo_id: melo.clone(),
+						msb_neu: msb_neu.clone(),
+						wechseldatum,
+					},
+				),
+			};
+			Ok(ReducerOutput {
+				state: MsbWechselState::KonfigurationAngefragt { melo, msb_neu, wechseldatum },
+				nachrichten: vec![nachricht],
+			})
+		}
+
+		// 2.1.3: Bestaetigt + AbmeldungMsbAltInformiert -> AbmeldungInformiert (NB → MSBA)
 		(
 			MsbWechselState::Bestaetigt { melo, msb_neu, wechseldatum },
 			MsbWechselEvent::AbmeldungMsbAltInformiert,
 		) => {
+			let nachricht = Nachricht {
+				absender: nb(),
+				absender_rolle: Netzbetreiber,
+				empfaenger: msb_alt(),
+				empfaenger_rolle: MessstellenbetreiberAlt,
+				pruef_id: None,
+				payload: NachrichtenPayload::UtilmdMsbWechselAnmeldung(
+					UtilmdMsbWechselAnmeldung {
+						melo_id: melo.clone(),
+						msb_neu: msb_neu.clone(),
+						wechseldatum,
+					},
+				),
+			};
 			Ok(ReducerOutput {
 				state: MsbWechselState::AbmeldungInformiert { melo, msb_neu, wechseldatum },
-				nachrichten: vec![],
+				nachrichten: vec![nachricht],
+			})
+		}
+
+		// KonfigurationAngefragt + AbmeldungMsbAltInformiert -> AbmeldungInformiert (NB → MSBA)
+		(
+			MsbWechselState::KonfigurationAngefragt { melo, msb_neu, wechseldatum },
+			MsbWechselEvent::AbmeldungMsbAltInformiert,
+		) => {
+			let nachricht = Nachricht {
+				absender: nb(),
+				absender_rolle: Netzbetreiber,
+				empfaenger: msb_alt(),
+				empfaenger_rolle: MessstellenbetreiberAlt,
+				pruef_id: None,
+				payload: NachrichtenPayload::UtilmdMsbWechselAnmeldung(
+					UtilmdMsbWechselAnmeldung {
+						melo_id: melo.clone(),
+						msb_neu: msb_neu.clone(),
+						wechseldatum,
+					},
+				),
+			};
+			Ok(ReducerOutput {
+				state: MsbWechselState::AbmeldungInformiert { melo, msb_neu, wechseldatum },
+				nachrichten: vec![nachricht],
 			})
 		}
 
