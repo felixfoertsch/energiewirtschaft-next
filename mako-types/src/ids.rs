@@ -79,6 +79,9 @@ impl MeLoId {
 				actual: value.len(),
 			});
 		}
+		if !value.starts_with("DE") {
+			return Err(ValidationError::InvalidCharacters);
+		}
 		if !value.chars().all(|c| c.is_ascii_alphanumeric()) {
 			return Err(ValidationError::InvalidCharacters);
 		}
@@ -188,6 +191,14 @@ mod tests {
 				actual: 4
 			})
 		);
+	}
+
+	#[test]
+	fn melo_id_missing_de_prefix() {
+		// 33 chars, alphanumeric, but does not start with "DE"
+		let id = "XX000000000000000000000000000000A";
+		let result = MeLoId::new(id);
+		assert_eq!(result, Err(ValidationError::InvalidCharacters));
 	}
 
 	#[test]
