@@ -109,13 +109,29 @@ pub fn parse_interchange(input: &str) -> Result<Interchange, ParseError> {
 		.cloned()
 		.unwrap_or_default();
 
-	// Collect messages between UNH..UNT pairs
+	// UNB control reference (data element 5, index 4) — used to verify the
+	// matching UNZ reference at the end of the interchange.
+	let unb_reference = unb
+		.elements
+		.get(4)
+		.and_then(|e| e.components.first())
+		.cloned()
+		.unwrap_or_default();
+
+	// Collect messages between UNH..UNT pairs.
 	let mut nachrichten = Vec::new();
 	let mut current_msg: Option<(String, String, Vec<Segment>)> = None;
+	let mut unz_segment: Option<&Segment> = None;
 
 	for seg in &segments[1..] {
 		match seg.tag.as_str() {
 			"UNH" => {
+				if current_msg.is_some() {
+					return Err(ParseError::InvalidSegment(
+						"UNH without preceding UNT — previous message is unterminated"
+							.to_string(),
+					));
+				}
 				let typ = seg
 					.elements
 					.get(1)
@@ -130,21 +146,63 @@ pub fn parse_interchange(input: &str) -> Result<Interchange, ParseError> {
 				current_msg = Some((typ, version, Vec::new()));
 			}
 			"UNT" => {
-				if let Some((typ, version, segmente)) = current_msg.take() {
-					nachrichten.push(EdifactNachricht {
-						typ,
-						version,
-						segmente,
-					});
-				}
+				let (typ, version, segmente) = current_msg.take().ok_or_else(|| {
+					ParseError::InvalidSegment("UNT without preceding UNH".to_string())
+				})?;
+				nachrichten.push(EdifactNachricht {
+					typ,
+					version,
+					segmente,
+				});
 			}
-			"UNZ" => break,
+			"UNZ" => {
+				unz_segment = Some(seg);
+				break;
+			}
 			_ => {
 				if let Some((_, _, ref mut segs)) = current_msg {
 					segs.push(seg.clone());
 				}
 			}
 		}
+	}
+
+	if current_msg.is_some() {
+		return Err(ParseError::MissingSegment("UNT".to_string()));
+	}
+
+	let unz = unz_segment.ok_or_else(|| ParseError::MissingSegment("UNZ".to_string()))?;
+
+	// Validate UNZ count (data element 1) matches number of messages.
+	let unz_count_str = unz
+		.elements
+		.first()
+		.and_then(|e| e.components.first())
+		.cloned()
+		.unwrap_or_default();
+	let unz_count: usize = unz_count_str.parse().map_err(|_| {
+		ParseError::InvalidSegment(format!(
+			"UNZ count is not a number: {unz_count_str:?}"
+		))
+	})?;
+	if unz_count != nachrichten.len() {
+		return Err(ParseError::InvalidSegment(format!(
+			"UNZ count {unz_count} does not match {} messages in interchange",
+			nachrichten.len()
+		)));
+	}
+
+	// Validate UNZ control reference (data element 2) matches UNB reference.
+	let unz_reference = unz
+		.elements
+		.get(1)
+		.and_then(|e| e.components.first())
+		.cloned()
+		.unwrap_or_default();
+	if !unb_reference.is_empty() && unz_reference != unb_reference {
+		return Err(ParseError::InvalidSegment(format!(
+			"UNZ reference {unz_reference:?} does not match UNB reference {unb_reference:?}"
+		)));
 	}
 
 	Ok(Interchange {
