@@ -1,9 +1,10 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::ids::MarktpartnerId;
 
 /// IFTSTA status message
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct IftstaStatusmeldung {
 	pub referenz_nachricht: String,
 	pub status_code: String,
@@ -11,7 +12,7 @@ pub struct IftstaStatusmeldung {
 }
 
 /// PARTIN market partner master data
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct PartinMarktpartner {
 	pub mp_id: MarktpartnerId,
 	pub name: String,
@@ -19,7 +20,7 @@ pub struct PartinMarktpartner {
 }
 
 /// UTILTS calculation formulas / metering time definitions
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtiltsZaehlzeitdefinition {
 	pub formel_id: String,
 	pub bezeichnung: String,

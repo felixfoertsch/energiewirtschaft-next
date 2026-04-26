@@ -1,3 +1,4 @@
+use schemars::{JsonSchema, schema::RootSchema};
 use serde::{Deserialize, Serialize};
 
 use crate::gpke_nachrichten::*;
@@ -18,7 +19,7 @@ pub struct Nachricht {
 
 /// Typed payload — one variant per concrete message type.
 /// Extended as new message types are implemented.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub enum NachrichtenPayload {
 	UtilmdAnmeldung(UtilmdAnmeldung),
 	UtilmdBestaetigung(UtilmdBestaetigung),
@@ -77,4 +78,104 @@ pub enum NachrichtenPayload {
 	IftstaStatusmeldung(crate::querschnitt::IftstaStatusmeldung),
 	PartinMarktpartner(crate::querschnitt::PartinMarktpartner),
 	UtiltsZaehlzeitdefinition(crate::querschnitt::UtiltsZaehlzeitdefinition),
+}
+
+macro_rules! payload_registry {
+	($( $typ:literal => $variant:ident($payload_ty:ty) ),+ $(,)?) => {
+		pub const NACHRICHTEN_PAYLOAD_TYPEN: &[&str] = &[
+			$( $typ ),+
+		];
+
+		pub fn schema_for(typ: &str) -> Option<RootSchema> {
+			match typ {
+				$( $typ => Some(schemars::schema_for!($payload_ty)), )+
+				_ => None,
+			}
+		}
+
+		impl NachrichtenPayload {
+			pub fn typ(&self) -> &'static str {
+				match self {
+					$( Self::$variant(_) => $typ, )+
+				}
+			}
+
+			pub fn from_value_for_typ(
+				typ: &str,
+				fields: serde_json::Value,
+			) -> Result<Option<Self>, serde_json::Error> {
+				match typ {
+					$(
+						$typ => serde_json::from_value::<$payload_ty>(fields)
+							.map(Self::$variant)
+							.map(Some),
+					)+
+					_ => Ok(None),
+				}
+			}
+		}
+	};
+}
+
+payload_registry! {
+	"UtilmdAnmeldung" => UtilmdAnmeldung(UtilmdAnmeldung),
+	"UtilmdBestaetigung" => UtilmdBestaetigung(UtilmdBestaetigung),
+	"UtilmdAbmeldung" => UtilmdAbmeldung(UtilmdAbmeldung),
+	"UtilmdAblehnung" => UtilmdAblehnung(UtilmdAblehnung),
+	"UtilmdZuordnung" => UtilmdZuordnung(UtilmdZuordnung),
+	"UtilmdLieferendeAbmeldung" => UtilmdLieferendeAbmeldung(UtilmdLieferendeAbmeldung),
+	"UtilmdLieferendeBestaetigung" => UtilmdLieferendeBestaetigung(UtilmdLieferendeBestaetigung),
+	"MsconsSchlussturnusmesswert" => MsconsSchlussturnusmesswert(MsconsSchlussturnusmesswert),
+	"MsconsLastgang" => MsconsLastgang(MsconsLastgang),
+	"UtilmdStammdatenaenderung" => UtilmdStammdatenaenderung(UtilmdStammdatenaenderung),
+	"UtilmdZuordnungsliste" => UtilmdZuordnungsliste(UtilmdZuordnungsliste),
+	"UtilmdGeschaeftsdatenanfrage" => UtilmdGeschaeftsdatenanfrage(UtilmdGeschaeftsdatenanfrage),
+	"UtilmdGeschaeftsdatenantwort" => UtilmdGeschaeftsdatenantwort(UtilmdGeschaeftsdatenantwort),
+	"UtilmdMsbWechselAnmeldung" => UtilmdMsbWechselAnmeldung(UtilmdMsbWechselAnmeldung),
+	"UtilmdGeraetewechsel" => UtilmdGeraetewechsel(UtilmdGeraetewechsel),
+	"OrdersWerteAnfrage" => OrdersWerteAnfrage(OrdersWerteAnfrage),
+	"ReqoteAngebotsanfrage" => ReqoteAngebotsanfrage(ReqoteAngebotsanfrage),
+	"QuotesAngebot" => QuotesAngebot(QuotesAngebot),
+	"OrdersBestellung" => OrdersBestellung(OrdersBestellung),
+	"OrdrspBestellantwort" => OrdrspBestellantwort(OrdrspBestellantwort),
+	"PricatPreisblatt" => PricatPreisblatt(PricatPreisblatt),
+	"UtilmdBilanzkreiszuordnung" => UtilmdBilanzkreiszuordnung(UtilmdBilanzkreiszuordnung),
+	"MsconsAggregierteZeitreihen" => MsconsAggregierteZeitreihen(MsconsAggregierteZeitreihen),
+	"MsconsMehrMindermengen" => MsconsMehrMindermengen(MsconsMehrMindermengen),
+	"UtilmdClearingliste" => UtilmdClearingliste(UtilmdClearingliste),
+	"InvoicRechnung" => InvoicRechnung(InvoicRechnung),
+	"RemadvZahlungsavis" => RemadvZahlungsavis(RemadvZahlungsavis),
+	"UtilmdAnmeldungErzeugung" => UtilmdAnmeldungErzeugung(UtilmdAnmeldungErzeugung),
+	"MsconsEinspeiseMesswerte" => MsconsEinspeiseMesswerte(MsconsEinspeiseMesswerte),
+	"RdStammdaten" => RdStammdaten(RdStammdaten),
+	"RdFahrplan" => RdFahrplan(RdFahrplan),
+	"RdAktivierung" => RdAktivierung(RdAktivierung),
+	"RdBestaetigung" => RdBestaetigung(RdBestaetigung),
+	"RdEngpass" => RdEngpass(RdEngpass),
+	"RdNichtverfuegbarkeit" => RdNichtverfuegbarkeit(RdNichtverfuegbarkeit),
+	"RdKostenblatt" => RdKostenblatt(RdKostenblatt),
+	"RdStatusRequest" => RdStatusRequest(RdStatusRequest),
+	"RdKaskade" => RdKaskade(RdKaskade),
+	"UtilmdSteuerbareVerbrauchseinrichtung" => UtilmdSteuerbareVerbrauchseinrichtung(UtilmdSteuerbareVerbrauchseinrichtung),
+	"ClsSteuersignal" => ClsSteuersignal(ClsSteuersignal),
+	"Nominierung" => Nominierung(Nominierung),
+	"NominierungBestaetigung" => NominierungBestaetigung(NominierungBestaetigung),
+	"Renominierung" => Renominierung(Renominierung),
+	"MsconsBrennwert" => MsconsBrennwert(MsconsBrennwert),
+	"UtilmdAusspeisepunkt" => UtilmdAusspeisepunkt(UtilmdAusspeisepunkt),
+	"IftstaStatusmeldung" => IftstaStatusmeldung(crate::querschnitt::IftstaStatusmeldung),
+	"PartinMarktpartner" => PartinMarktpartner(crate::querschnitt::PartinMarktpartner),
+	"UtiltsZaehlzeitdefinition" => UtiltsZaehlzeitdefinition(crate::querschnitt::UtiltsZaehlzeitdefinition),
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn schema_for_covers_all_payload_types() {
+		for typ in NACHRICHTEN_PAYLOAD_TYPEN {
+			assert!(schema_for(typ).is_some(), "missing schema for {typ}");
+		}
+	}
 }

@@ -1,12 +1,13 @@
 use std::fmt;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::fehler::ValidationError;
 
 /// Marktlokations-ID (11 digits, last digit = check digit per Luhn algorithm)
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct MaLoId(String);
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+pub struct MaLoId(#[schemars(regex(pattern = r"^\d{11}$"))] String);
 
 impl MaLoId {
 	pub fn new(value: &str) -> Result<Self, ValidationError> {
@@ -39,8 +40,8 @@ impl fmt::Display for MaLoId {
 }
 
 /// Marktpartner-ID (13 digits, BDEW Codenummer)
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct MarktpartnerId(String);
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+pub struct MarktpartnerId(#[schemars(regex(pattern = r"^\d{13}$"))] String);
 
 impl MarktpartnerId {
 	pub fn new(value: &str) -> Result<Self, ValidationError> {
@@ -68,8 +69,8 @@ impl fmt::Display for MarktpartnerId {
 }
 
 /// Messlokations-ID (33 characters: "DE" + 31 alphanumeric)
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct MeLoId(String);
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+pub struct MeLoId(#[schemars(regex(pattern = r"^DE[0-9A-Za-z]{31}$"))] String);
 
 impl MeLoId {
 	pub fn new(value: &str) -> Result<Self, ValidationError> {

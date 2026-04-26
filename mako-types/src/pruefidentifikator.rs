@@ -1,9 +1,13 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::gpke_nachrichten::RechnungsTyp;
+use crate::nachricht::NachrichtenPayload;
 
 /// BDEW Pruefidentifikator (RFF+Z13) -- identifies the specific business use case
 /// of an EDIFACT message. Each message in MaKo carries exactly one Pruefidentifikator
 /// that determines which AHB rules and EBD decision trees apply.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 pub enum PruefIdentifikator {
 	// === GPKE (Strom-Lieferantenwechsel) ===
 	/// 44001: Anmeldung Netznutzung (UTILMD, GPKE 1.1.1)
@@ -146,6 +150,48 @@ impl PruefIdentifikator {
 			31004 => Some(Self::Stornorechnung),
 			33001 => Some(Self::ZahlungsavisPositiv),
 			33002 => Some(Self::ZahlungsavisNegativ),
+			_ => None,
+		}
+	}
+
+	/// Best-effort lookup from a typed payload to its RFF+Z13 identifier.
+	///
+	/// Some implemented payloads do not have a dedicated enum variant yet; those
+	/// return `None` so callers can still serialize messages that have no known
+	/// Prüfidentifikator in this crate.
+	pub fn for_payload(payload: &NachrichtenPayload) -> Option<Self> {
+		match payload {
+			NachrichtenPayload::UtilmdAnmeldung(_) => Some(Self::AnmeldungNn),
+			NachrichtenPayload::UtilmdBestaetigung(_) => Some(Self::AnmeldungBestaetigung),
+			NachrichtenPayload::UtilmdAbmeldung(_) => Some(Self::Kuendigungsmitteilung),
+			NachrichtenPayload::UtilmdAblehnung(_) => Some(Self::AnmeldungAblehnung),
+			NachrichtenPayload::UtilmdLieferendeAbmeldung(_) => Some(Self::AbmeldungNn),
+			NachrichtenPayload::UtilmdLieferendeBestaetigung(_) => {
+				Some(Self::AbmeldungBestaetigung)
+			}
+			NachrichtenPayload::UtilmdStammdatenaenderung(_) => Some(Self::Stammdatenaenderung),
+			NachrichtenPayload::UtilmdBilanzkreiszuordnung(_) => {
+				Some(Self::BilanzierungsrelevanteAenderung)
+			}
+			NachrichtenPayload::MsconsSchlussturnusmesswert(_) => Some(Self::Zaehlerstand),
+			NachrichtenPayload::MsconsLastgang(_) => Some(Self::Lastgang),
+			NachrichtenPayload::MsconsBrennwert(_) => Some(Self::Gasbeschaffenheit),
+			NachrichtenPayload::MsconsEinspeiseMesswerte(_) => Some(Self::Energiemenge),
+			NachrichtenPayload::UtilmdGeraetewechsel(_) => Some(Self::Geraetewechsel),
+			NachrichtenPayload::OrdersWerteAnfrage(_) => Some(Self::AnfrageWerte),
+			NachrichtenPayload::InvoicRechnung(rechnung) => match rechnung.rechnungstyp {
+				RechnungsTyp::Netznutzung => Some(Self::Netznutzungsrechnung),
+				RechnungsTyp::Messstellenbetrieb => Some(Self::RechnungMessstellenbetrieb),
+				RechnungsTyp::MehrMindermengen => Some(Self::Abschlagsrechnung),
+				RechnungsTyp::Ausgleichsenergie => Some(Self::Stornorechnung),
+			},
+			NachrichtenPayload::RemadvZahlungsavis(avis) => {
+				if avis.akzeptiert {
+					Some(Self::ZahlungsavisPositiv)
+				} else {
+					Some(Self::ZahlungsavisNegativ)
+				}
+			}
 			_ => None,
 		}
 	}

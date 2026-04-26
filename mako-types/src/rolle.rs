@@ -169,6 +169,52 @@ impl MarktRolle {
 		}
 	}
 
+	/// Parse the stable filesystem/wire slug used by `mako-cli init`.
+	pub fn from_slug(slug: &str) -> Option<Self> {
+		use MarktRolle::*;
+		match slug {
+			"lieferant" => Some(Lieferant),
+			"lieferant_neu" => Some(LieferantNeu),
+			"lieferant_alt" => Some(LieferantAlt),
+			"lieferant_ersatz_grundversorgung" => Some(LieferantErsatzGrundversorgung),
+			"netzbetreiber" => Some(Netzbetreiber),
+			"netzbetreiber_alt" => Some(NetzbetreiberAlt),
+			"netzbetreiber_neu" => Some(NetzbetreiberNeu),
+			"anschlussnetzbetreiber" => Some(Anschlussnetzbetreiber),
+			"anfordernder_netzbetreiber" => Some(AnfordernderNetzbetreiber),
+			"uebertragungsnetzbetreiber" => Some(Uebertragungsnetzbetreiber),
+			"fernleitungsnetzbetreiber" => Some(Fernleitungsnetzbetreiber),
+			"messstellenbetreiber" => Some(Messstellenbetreiber),
+			"messstellenbetreiber_alt" => Some(MessstellenbetreiberAlt),
+			"messstellenbetreiber_neu" => Some(MessstellenbetreiberNeu),
+			"grundzustaendiger_messstellenbetreiber" => {
+				Some(GrundzustaendigerMessstellenbetreiber)
+			}
+			"wettbewerblicher_messstellenbetreiber" => Some(WettbewerblicherMessstellenbetreiber),
+			"messdienstleister" => Some(Messdienstleister),
+			"bilanzkreisverantwortlicher" => Some(Bilanzkreisverantwortlicher),
+			"bilanzkoordinator" => Some(Bilanzkoordinator),
+			"marktgebietsverantwortlicher" => Some(Marktgebietsverantwortlicher),
+			"betreiber_technische_ressource" => Some(BetreiberTechnischeRessource),
+			"einsatzverantwortlicher" => Some(Einsatzverantwortlicher),
+			"data_provider" => Some(DataProvider),
+			"betreiber_erzeugungsanlage" => Some(BetreiberErzeugungsanlage),
+			"direktvermarkter" => Some(Direktvermarkter),
+			"energieserviceanbieter" => Some(Energieserviceanbieter),
+			"aggregator" => Some(Aggregator),
+			"ladepunktbetreiber" => Some(Ladepunktbetreiber),
+			"registerbetreiber_hknr" => Some(RegisterbetreiberHknr),
+			"transportkunde" => Some(Transportkunde),
+			"kapazitaetsnutzer" => Some(Kapazitaetsnutzer),
+			"speicherstellenbetreiber" => Some(Speicherstellenbetreiber),
+			"einspeisenetzbetreiber" => Some(Einspeisenetzbetreiber),
+			"ausspeisenetzbetreiber" => Some(Ausspeisenetzbetreiber),
+			"rechnungsersteller" => Some(Rechnungsersteller),
+			"rechnungsempfaenger" => Some(Rechnungsempfaenger),
+			_ => None,
+		}
+	}
+
 	/// Official BDEW/BNetzA shorthand used in AHB/EBD reference data.
 	pub fn kuerzel(&self) -> &'static str {
 		use MarktRolle::*;

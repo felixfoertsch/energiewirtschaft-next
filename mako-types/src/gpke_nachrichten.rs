@@ -1,10 +1,11 @@
 use chrono::{NaiveDate, NaiveDateTime};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::ids::{MaLoId, MarktpartnerId, MeLoId};
 
 /// UTILMD Anmeldung: LFN -> NB (GPKE 1.1.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdAnmeldung {
 	pub malo_id: MaLoId,
 	pub lieferant_neu: MarktpartnerId,
@@ -12,7 +13,7 @@ pub struct UtilmdAnmeldung {
 }
 
 /// UTILMD Bestaetigung: NB -> LFN (GPKE 1.1.2) or NB -> LFA (GPKE 1.1.6)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdBestaetigung {
 	pub malo_id: MaLoId,
 	pub bestaetigt_fuer: MarktpartnerId,
@@ -20,7 +21,7 @@ pub struct UtilmdBestaetigung {
 }
 
 /// UTILMD Abmeldung: NB -> LFA (GPKE 1.1.3)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdAbmeldung {
 	pub malo_id: MaLoId,
 	pub lieferant_alt: MarktpartnerId,
@@ -28,21 +29,21 @@ pub struct UtilmdAbmeldung {
 }
 
 /// UTILMD Ablehnung: LFA -> NB (GPKE 1.1.4, rejection case)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdAblehnung {
 	pub malo_id: MaLoId,
 	pub grund: AblehnungsGrund,
 }
 
 /// UTILMD Zuordnung: NB -> LFN / NB -> LFA (GPKE 1.1.5 / 1.1.6)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdZuordnung {
 	pub malo_id: MaLoId,
 	pub zugeordnet_an: MarktpartnerId,
 	pub lieferbeginn: NaiveDate,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum AblehnungsGrund {
 	Fristverletzung,
 	MaloUnbekannt,
@@ -51,7 +52,7 @@ pub enum AblehnungsGrund {
 }
 
 /// UTILMD Lieferende-Abmeldung: LF -> NB (GPKE 1.2.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdLieferendeAbmeldung {
 	pub malo_id: MaLoId,
 	pub lieferant: MarktpartnerId,
@@ -59,14 +60,14 @@ pub struct UtilmdLieferendeAbmeldung {
 }
 
 /// UTILMD Lieferende-Bestätigung: NB -> LF (GPKE 1.2.2)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdLieferendeBestaetigung {
 	pub malo_id: MaLoId,
 	pub lieferende: NaiveDate,
 }
 
 /// MSCONS Schlussturnusmesswert: NB -> LF (GPKE 1.2.3)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct MsconsSchlussturnusmesswert {
 	pub malo_id: MaLoId,
 	pub zaehlerstand: f64,
@@ -75,14 +76,14 @@ pub struct MsconsSchlussturnusmesswert {
 }
 
 /// MSCONS Lastgang: time series of energy values (15-min or hourly intervals)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct MsconsLastgang {
 	pub malo_id: MaLoId,
 	pub werte: Vec<Messwert>,
 	pub intervall_minuten: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Messwert {
 	pub zeitpunkt: NaiveDateTime,
 	pub wert: f64,
@@ -90,7 +91,7 @@ pub struct Messwert {
 	pub status: MesswertStatus,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum MesswertStatus {
 	Gemessen,
 	Ersatzwert,
@@ -98,14 +99,14 @@ pub enum MesswertStatus {
 }
 
 /// UTILMD Stammdatenaenderung (generic, used for GPKE 1.3.1-1.3.5)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdStammdatenaenderung {
 	pub malo_id: MaLoId,
 	pub initiator: MarktpartnerId,
 	pub aenderungen: Vec<Stammdatenfeld>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Stammdatenfeld {
 	pub feld: String,
 	pub alter_wert: Option<String>,
@@ -113,12 +114,12 @@ pub struct Stammdatenfeld {
 }
 
 /// UTILMD Zuordnungsliste (GPKE 1.4.1-1.4.4)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdZuordnungsliste {
 	pub eintraege: Vec<ZuordnungsEintrag>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct ZuordnungsEintrag {
 	pub malo_id: MaLoId,
 	pub zugeordnet_an: MarktpartnerId,
@@ -126,14 +127,14 @@ pub struct ZuordnungsEintrag {
 }
 
 /// UTILMD Geschäftsdatenanfrage: LF -> NB (GPKE 1.5.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdGeschaeftsdatenanfrage {
 	pub malo_id: MaLoId,
 	pub anfragender: MarktpartnerId,
 }
 
 /// UTILMD Geschäftsdatenantwort: NB -> LF (GPKE 1.5.2)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdGeschaeftsdatenantwort {
 	pub malo_id: MaLoId,
 	pub stammdaten: Vec<Stammdatenfeld>,
@@ -142,7 +143,7 @@ pub struct UtilmdGeschaeftsdatenantwort {
 // === WiM Message Types ===
 
 /// UTILMD MSB-Wechsel Anmeldung: MSB_neu -> NB (WiM 2.1.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdMsbWechselAnmeldung {
 	pub melo_id: MeLoId,
 	pub msb_neu: MarktpartnerId,
@@ -150,7 +151,7 @@ pub struct UtilmdMsbWechselAnmeldung {
 }
 
 /// UTILMD Gerätewechsel: MSB -> NB (WiM 2.2.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdGeraetewechsel {
 	pub melo_id: MeLoId,
 	pub alte_geraete_nr: String,
@@ -159,7 +160,7 @@ pub struct UtilmdGeraetewechsel {
 }
 
 /// ORDERS Werte-Anfrage: LF/ESA -> MSB (WiM 2.4.1/2.4.3)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct OrdersWerteAnfrage {
 	pub malo_id: MaLoId,
 	pub anfragender: MarktpartnerId,
@@ -170,7 +171,7 @@ pub struct OrdersWerteAnfrage {
 // === UBP Message Types ===
 
 /// REQOTE Angebotsanfrage: LF/NB -> MSB (UBP 3.1.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct ReqoteAngebotsanfrage {
 	pub melo_id: MeLoId,
 	pub anfragender: MarktpartnerId,
@@ -178,7 +179,7 @@ pub struct ReqoteAngebotsanfrage {
 }
 
 /// QUOTES Angebot: MSB -> LF/NB (UBP 3.1.2)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct QuotesAngebot {
 	pub melo_id: MeLoId,
 	pub anbieter: MarktpartnerId,
@@ -187,7 +188,7 @@ pub struct QuotesAngebot {
 }
 
 /// ORDERS Bestellung: LF/NB -> MSB (UBP 3.1.3)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct OrdersBestellung {
 	pub melo_id: MeLoId,
 	pub besteller: MarktpartnerId,
@@ -195,7 +196,7 @@ pub struct OrdersBestellung {
 }
 
 /// ORDRSP Bestellantwort: MSB -> LF/NB (UBP 3.1.4)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct OrdrspBestellantwort {
 	pub melo_id: MeLoId,
 	pub angenommen: bool,
@@ -203,14 +204,14 @@ pub struct OrdrspBestellantwort {
 }
 
 /// PRICAT Preisblatt: MSB -> NB/LF (UBP 3.3.1-3.3.3)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct PricatPreisblatt {
 	pub herausgeber: MarktpartnerId,
 	pub gueltig_ab: NaiveDate,
 	pub positionen: Vec<PreisPosition>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct PreisPosition {
 	pub bezeichnung: String,
 	pub preis_ct: f64,
@@ -220,7 +221,7 @@ pub struct PreisPosition {
 // === MaBiS Message Types ===
 
 /// UTILMD Bilanzkreiszuordnung: LF -> NB (MaBiS 4.1.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdBilanzkreiszuordnung {
 	pub malo_id: MaLoId,
 	pub bilanzkreis: String, // BK-Nummer
@@ -228,14 +229,14 @@ pub struct UtilmdBilanzkreiszuordnung {
 }
 
 /// MSCONS Aggregierte Zeitreihen: NB -> BKV (MaBiS 4.2.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct MsconsAggregierteZeitreihen {
 	pub bilanzkreis: String,
 	pub zeitreihen: Vec<Messwert>,
 	pub typ: ZeitreihenTyp,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum ZeitreihenTyp {
 	SlpSynthese,
 	RlmLastgang,
@@ -244,7 +245,7 @@ pub enum ZeitreihenTyp {
 }
 
 /// MSCONS Mehr-/Mindermengenliste: NB -> LF (MaBiS 4.3.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct MsconsMehrMindermengen {
 	pub malo_id: MaLoId,
 	pub mehrmenge_kwh: f64,
@@ -254,12 +255,12 @@ pub struct MsconsMehrMindermengen {
 }
 
 /// UTILMD Clearingliste: NB -> LF (MaBiS 4.4.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdClearingliste {
 	pub eintraege: Vec<ClearingEintrag>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct ClearingEintrag {
 	pub malo_id: MaLoId,
 	pub feld: String,
@@ -270,7 +271,7 @@ pub struct ClearingEintrag {
 // === Abrechnung (INVOIC/REMADV) ===
 
 /// INVOIC Rechnung (generic, covers 6.1-6.9)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct InvoicRechnung {
 	pub rechnungsnummer: String,
 	pub rechnungsdatum: NaiveDate,
@@ -281,7 +282,7 @@ pub struct InvoicRechnung {
 	pub rechnungstyp: RechnungsTyp,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RechnungsPosition {
 	pub bezeichnung: String,
 	pub menge: f64,
@@ -290,7 +291,7 @@ pub struct RechnungsPosition {
 	pub betrag_ct: i64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum RechnungsTyp {
 	Netznutzung,
 	Messstellenbetrieb,
@@ -299,7 +300,7 @@ pub enum RechnungsTyp {
 }
 
 /// REMADV Zahlungsavis (covers 6.2-6.10)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RemadvZahlungsavis {
 	pub referenz_rechnungsnummer: String,
 	pub zahlungsdatum: NaiveDate,
@@ -311,7 +312,7 @@ pub struct RemadvZahlungsavis {
 // === MPES Message Types ===
 
 /// UTILMD Anmeldung Erzeugungsanlage: BV/DP -> NB (MPES 5.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdAnmeldungErzeugung {
 	pub malo_id: MaLoId,
 	pub anlagenbetreiber: MarktpartnerId,
@@ -320,7 +321,7 @@ pub struct UtilmdAnmeldungErzeugung {
 }
 
 /// MSCONS Einspeise-Messwerte (MPES 5.4-5.6)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct MsconsEinspeiseMesswerte {
 	pub malo_id: MaLoId,
 	pub werte: Vec<Messwert>,
@@ -329,7 +330,7 @@ pub struct MsconsEinspeiseMesswerte {
 // === Redispatch 2.0 Message Types (XML-based) ===
 
 /// XML Stammdaten Technische/Steuerbare Ressourcen (RD 7.1.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RdStammdaten {
 	pub ressource_id: String,
 	pub ressource_typ: RessourceTyp,
@@ -337,21 +338,21 @@ pub struct RdStammdaten {
 	pub installierte_leistung_kw: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum RessourceTyp {
 	TechnischeRessource,
 	SteuerbareRessource,
 }
 
 /// PlannedResourceScheduleDocument (RD 7.2.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RdFahrplan {
 	pub ressource_id: String,
 	pub zeitreihe: Vec<Messwert>,
 }
 
 /// ActivationDocument: Redispatch-Abruf (RD 7.3.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RdAktivierung {
 	pub ressource_id: String,
 	pub sollwert_kw: f64,
@@ -360,7 +361,7 @@ pub struct RdAktivierung {
 }
 
 /// AcknowledgementDocument (RD 7.1.3, 7.2.3, 7.3.3)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RdBestaetigung {
 	pub referenz_dokument_id: String,
 	pub akzeptiert: bool,
@@ -368,7 +369,7 @@ pub struct RdBestaetigung {
 }
 
 /// NetworkConstraintDocument (RD 7.4.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RdEngpass {
 	pub netzgebiet: String,
 	pub engpass_start: NaiveDateTime,
@@ -377,7 +378,7 @@ pub struct RdEngpass {
 }
 
 /// Unavailability_MarketDocument (RD 7.4.2)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RdNichtverfuegbarkeit {
 	pub ressource_id: String,
 	pub von: NaiveDateTime,
@@ -386,7 +387,7 @@ pub struct RdNichtverfuegbarkeit {
 }
 
 /// Kostenblatt (RD 7.5.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RdKostenblatt {
 	pub ressource_id: String,
 	pub kosten_ct: i64,
@@ -395,14 +396,14 @@ pub struct RdKostenblatt {
 }
 
 /// StatusRequest_MarketDocument (RD 7.6.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RdStatusRequest {
 	pub ressource_id: String,
 	pub anfrage_typ: String,
 }
 
 /// Kaskade (RD cascading of redispatch measures, FV2510)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RdKaskade {
 	pub ressource_id: String,
 	pub kaskaden_stufe: u8,
@@ -414,14 +415,14 @@ pub struct RdKaskade {
 // === §14a EnWG Message Types ===
 
 /// UTILMD Anmeldung steuerbare Verbrauchseinrichtung (§14a 8.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdSteuerbareVerbrauchseinrichtung {
 	pub malo_id: MaLoId,
 	pub geraetetyp: SteuerbarerGeraetetyp,
 	pub max_leistung_kw: f64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum SteuerbarerGeraetetyp {
 	Waermepumpe,
 	Wallbox,
@@ -430,14 +431,14 @@ pub enum SteuerbarerGeraetetyp {
 }
 
 /// CLS-Kanal Steuersignal (§14a 8.4)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct ClsSteuersignal {
 	pub malo_id: MaLoId,
 	pub steuerung: Steuerungsart,
 	pub zeitpunkt: NaiveDateTime,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum Steuerungsart {
 	Dimmung { prozent: u8 },
 	Abschaltung,
@@ -447,20 +448,20 @@ pub enum Steuerungsart {
 // === Gas-specific Types ===
 
 /// Nominierung: BKV -> MGV (GABi Gas 4.3.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Nominierung {
 	pub bilanzkreis: String,
 	pub zeitreihe_soll: Vec<Messwert>, // hourly values
 }
 
 /// Nominierungsbestätigung: MGV -> BKV (GABi Gas 4.3.2)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct NominierungBestaetigung {
 	pub bilanzkreis: String,
 	pub matching_ergebnis: MatchingErgebnis,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub enum MatchingErgebnis {
 	Bestaetigt,
 	TeilweiseBestaetigt { bestaetigte_menge_kwh: f64 },
@@ -468,14 +469,14 @@ pub enum MatchingErgebnis {
 }
 
 /// Renominierung: BKV -> MGV (GABi Gas 4.3.3)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Renominierung {
 	pub bilanzkreis: String,
 	pub zeitreihe_soll: Vec<Messwert>,
 }
 
 /// MSCONS Brennwertmitteilung: FNB/NB -> LF (KoV 5.3.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct MsconsBrennwert {
 	pub netzgebiet: String,
 	pub brennwert_kwh_per_m3: f64,
@@ -485,7 +486,7 @@ pub struct MsconsBrennwert {
 }
 
 /// UTILMD Ausspeisepunkt: NB -> FNB (KoV 5.4.1)
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct UtilmdAusspeisepunkt {
 	pub malo_id: MaLoId,
 	pub nb: MarktpartnerId,
