@@ -6,7 +6,7 @@ import { MessageForm } from "@/components/MessageForm.tsx";
 import { MessageList } from "@/components/MessageList.tsx";
 import { ProcessTimeline } from "@/components/ProcessTimeline.tsx";
 import { ProzessListe } from "@/components/ProzessListe.tsx";
-import { RollenTabs } from "@/components/RollenTabs.tsx";
+import { RollenSidebar } from "@/components/RollenSidebar.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { api, subscribeEvents } from "@/lib/api.ts";
 import type { BatchErgebnis, NachrichtMeta, Rolle } from "@/lib/types.ts";
@@ -157,63 +157,67 @@ export function App() {
 				</div>
 			)}
 
-			<RollenTabs
-				rollen={rollen}
-				aktiveRolle={aktiveRolle}
-				onRolleChange={handleRolleChange}
-				unreadCounts={unreadCounts}
-			/>
+			<div className="flex min-h-0 flex-1 overflow-hidden">
+				<RollenSidebar
+					rollen={rollen}
+					aktiveRolle={aktiveRolle}
+					onRolleChange={handleRolleChange}
+					unreadCounts={unreadCounts}
+				/>
 
-			<div className="grid min-h-0 flex-1 grid-cols-[240px_1fr_1fr] overflow-hidden">
-				{/* Left: Aufgaben + Prozesse */}
-				<div className="flex flex-col overflow-hidden border-r">
-					<AufgabenQueue aufgaben={aufgaben} onRolleSwitch={handleRolleChange} />
-					<ProzessListe
-						rolle={aktiveRolle}
-						aktiverProzess={aktiverProzess}
-						onSelect={handleProzessSelect}
-					/>
-				</div>
-
-				{/* Center: Inbox/Outbox */}
-				<div className="overflow-hidden border-r">
-					<MessageList
-						inbox={inbox}
-						outbox={outbox}
-						selectedDatei={selection?.datei ?? null}
-						onSelect={handleSelect}
-						onRolleSwitch={handleRolleChange}
-					/>
-				</div>
-
-				{/* Right: Detail or Form */}
-				<div className="overflow-hidden">
-					{selection ? (
-						<MessageDetail
-							rolle={aktiveRolle}
-							box={selection.box}
-							datei={selection.datei}
-							onRolleSwitch={handleRolleChange}
-							onVerarbeitet={loadMessages}
-						/>
-					) : showForm ? (
-						<MessageForm
-							rolle={aktiveRolle}
-							aktiverProzess={aktiverProzess}
-							onSent={loadMessages}
-						/>
-					) : (
-						<div className="p-4">
-							<p className="text-muted-foreground text-sm">
-								Nachricht auswählen oder Prozess wählen, um zu senden.
-							</p>
+				<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+					<div className="grid min-h-0 flex-1 grid-cols-[240px_1fr_1fr] overflow-hidden">
+						{/* Left: Aufgaben + Prozesse */}
+						<div className="flex flex-col overflow-hidden border-r">
+							<AufgabenQueue aufgaben={aufgaben} onRolleSwitch={handleRolleChange} />
+							<ProzessListe
+								rolle={aktiveRolle}
+								aktiverProzess={aktiverProzess}
+								onSelect={handleProzessSelect}
+							/>
 						</div>
-					)}
+
+						{/* Center: Inbox/Outbox */}
+						<div className="overflow-hidden border-r">
+							<MessageList
+								inbox={inbox}
+								outbox={outbox}
+								selectedDatei={selection?.datei ?? null}
+								onSelect={handleSelect}
+								onRolleSwitch={handleRolleChange}
+							/>
+						</div>
+
+						{/* Right: Detail or Form */}
+						<div className="overflow-hidden">
+							{selection ? (
+								<MessageDetail
+									rolle={aktiveRolle}
+									box={selection.box}
+									datei={selection.datei}
+									onRolleSwitch={handleRolleChange}
+									onVerarbeitet={loadMessages}
+								/>
+							) : showForm ? (
+								<MessageForm
+									rolle={aktiveRolle}
+									aktiverProzess={aktiverProzess}
+									onSent={loadMessages}
+								/>
+							) : (
+								<div className="p-4">
+									<p className="text-muted-foreground text-sm">
+										Nachricht auswählen oder Prozess wählen, um zu senden.
+									</p>
+								</div>
+							)}
+						</div>
+					</div>
+
+					{/* Bottom: Process Timeline */}
+					<ProcessTimeline prozessKey={aktiverProzess} aktiveRolle={aktiveRolle} />
 				</div>
 			</div>
-
-			{/* Bottom: Process Timeline */}
-			<ProcessTimeline prozessKey={aktiverProzess} aktiveRolle={aktiveRolle} />
 
 			{/* Batch verification modal */}
 			{batchErgebnis && (
