@@ -4,6 +4,13 @@ use mako_types::ids::MarktpartnerId;
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 use mako_types::reducer::ReducerOutput;
 use mako_types::rolle::MarktRolle;
+use mako_types::rolle::MarktRolle::*;
+
+pub const ENGPASS_ROLLENTUPEL: &[(MarktRolle, MarktRolle)] = &[
+	(Netzbetreiber, DataProvider),
+	(DataProvider, Anschlussnetzbetreiber),
+	(Netzbetreiber, Anschlussnetzbetreiber),
+];
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EngpassState {
@@ -33,12 +40,13 @@ pub fn reduce(
 		(EngpassState::Idle, EngpassEvent::EngpassGemeldet(e)) => {
 			let absender = MarktpartnerId::new("9900000000010").expect("valid id");
 			let empfaenger = MarktpartnerId::new("9900000000003").expect("valid id");
+			let (absender_rolle, empfaenger_rolle) = ENGPASS_ROLLENTUPEL[2];
 			let nachricht = Nachricht {
 				absender: absender.clone(),
-				absender_rolle: MarktRolle::Uebertragungsnetzbetreiber,
+				absender_rolle,
 				empfaenger,
-				empfaenger_rolle: MarktRolle::Netzbetreiber,
-			pruef_id: None,
+				empfaenger_rolle,
+				pruef_id: None,
 				payload: NachrichtenPayload::RdEngpass(e.clone()),
 			};
 			Ok(ReducerOutput {
@@ -50,13 +58,12 @@ pub fn reduce(
 			})
 		}
 
-		(
-			EngpassState::EngpassGemeldet { netzgebiet, .. },
-			EngpassEvent::Bestaetigt,
-		) => Ok(ReducerOutput {
-			state: EngpassState::Bestaetigt { netzgebiet },
-			nachrichten: vec![],
-		}),
+		(EngpassState::EngpassGemeldet { netzgebiet, .. }, EngpassEvent::Bestaetigt) => {
+			Ok(ReducerOutput {
+				state: EngpassState::Bestaetigt { netzgebiet },
+				nachrichten: vec![],
+			})
+		}
 
 		(state, event) => Err(ProzessFehler::UngueltigerUebergang {
 			state: format!("{state:?}"),

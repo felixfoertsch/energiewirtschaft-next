@@ -4,6 +4,18 @@ use mako_types::ids::MarktpartnerId;
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 use mako_types::reducer::ReducerOutput;
 use mako_types::rolle::MarktRolle;
+use mako_types::rolle::MarktRolle::*;
+
+pub const STAMMDATEN_ROLLENTUPEL: &[(MarktRolle, MarktRolle)] = &[
+	(Einsatzverantwortlicher, DataProvider),
+	(DataProvider, Anschlussnetzbetreiber),
+	(Anschlussnetzbetreiber, DataProvider),
+	(DataProvider, Netzbetreiber),
+	(Netzbetreiber, DataProvider),
+	(Netzbetreiber, Anschlussnetzbetreiber),
+	(DataProvider, Bilanzkreisverantwortlicher),
+	(Bilanzkreisverantwortlicher, Uebertragungsnetzbetreiber),
+];
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StammdatenState {
@@ -46,12 +58,13 @@ pub fn reduce(
 		(StammdatenState::Idle, StammdatenEvent::StammdatenGesendet(sd)) => {
 			let absender = MarktpartnerId::new("9900000000003").expect("valid id");
 			let empfaenger = MarktpartnerId::new("9900000000010").expect("valid id");
+			let (absender_rolle, empfaenger_rolle) = STAMMDATEN_ROLLENTUPEL[2];
 			let nachricht = Nachricht {
 				absender: absender.clone(),
-				absender_rolle: MarktRolle::Netzbetreiber,
+				absender_rolle,
 				empfaenger: empfaenger.clone(),
-				empfaenger_rolle: MarktRolle::Uebertragungsnetzbetreiber,
-			pruef_id: None,
+				empfaenger_rolle,
+				pruef_id: None,
 				payload: NachrichtenPayload::RdStammdaten(sd.clone()),
 			};
 			Ok(ReducerOutput {
@@ -66,7 +79,9 @@ pub fn reduce(
 
 		(
 			StammdatenState::StammdatenGesendet {
-				ressource_id, absender, ..
+				ressource_id,
+				absender,
+				..
 			},
 			StammdatenEvent::Weitergeleitet,
 		) => Ok(ReducerOutput {
@@ -77,13 +92,12 @@ pub fn reduce(
 			nachrichten: vec![],
 		}),
 
-		(
-			StammdatenState::Weitergeleitet { ressource_id, .. },
-			StammdatenEvent::Bestaetigt,
-		) => Ok(ReducerOutput {
-			state: StammdatenState::Bestaetigt { ressource_id },
-			nachrichten: vec![],
-		}),
+		(StammdatenState::Weitergeleitet { ressource_id, .. }, StammdatenEvent::Bestaetigt) => {
+			Ok(ReducerOutput {
+				state: StammdatenState::Bestaetigt { ressource_id },
+				nachrichten: vec![],
+			})
+		}
 
 		(
 			StammdatenState::Weitergeleitet { ressource_id, .. },

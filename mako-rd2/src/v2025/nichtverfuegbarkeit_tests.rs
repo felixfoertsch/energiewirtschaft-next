@@ -2,10 +2,10 @@ use chrono::NaiveDateTime;
 
 use mako_types::fehler::ProzessFehler;
 use mako_types::gpke_nachrichten::RdNichtverfuegbarkeit;
-use mako_types::ids::MarktpartnerId;
+use mako_types::rolle::MarktRolle::*;
 
 use super::nichtverfuegbarkeit::{
-	NichtverfuegbarkeitEvent, NichtverfuegbarkeitState, reduce,
+	NICHTVERFUEGBARKEIT_ROLLENTUPEL, NichtverfuegbarkeitEvent, NichtverfuegbarkeitState, reduce,
 };
 
 fn dt(s: &str) -> NaiveDateTime {
@@ -28,11 +28,15 @@ fn happy_path_idle_to_weitergeleitet() {
 		NichtverfuegbarkeitEvent::Gemeldet(nv_msg()),
 	)
 	.expect("step 1");
-	assert!(matches!(out.state, NichtverfuegbarkeitState::Gemeldet { .. }));
+	assert!(matches!(
+		out.state,
+		NichtverfuegbarkeitState::Gemeldet { .. }
+	));
 	assert_eq!(out.nachrichten.len(), 1);
+	assert_eq!(out.nachrichten[0].absender_rolle, Einsatzverantwortlicher);
+	assert_eq!(out.nachrichten[0].empfaenger_rolle, DataProvider);
 
-	let out = reduce(out.state, NichtverfuegbarkeitEvent::Weitergeleitet)
-		.expect("step 2");
+	let out = reduce(out.state, NichtverfuegbarkeitEvent::Weitergeleitet).expect("step 2");
 	assert_eq!(
 		out.state,
 		NichtverfuegbarkeitState::Weitergeleitet {
@@ -47,7 +51,10 @@ fn idle_cannot_receive_weitergeleitet() {
 		NichtverfuegbarkeitState::Idle,
 		NichtverfuegbarkeitEvent::Weitergeleitet,
 	);
-	assert!(matches!(result, Err(ProzessFehler::UngueltigerUebergang { .. })));
+	assert!(matches!(
+		result,
+		Err(ProzessFehler::UngueltigerUebergang { .. })
+	));
 }
 
 #[test]
@@ -56,5 +63,20 @@ fn weitergeleitet_is_terminal() {
 		ressource_id: "TR-001".to_string(),
 	};
 	let result = reduce(state, NichtverfuegbarkeitEvent::Weitergeleitet);
-	assert!(matches!(result, Err(ProzessFehler::UngueltigerUebergang { .. })));
+	assert!(matches!(
+		result,
+		Err(ProzessFehler::UngueltigerUebergang { .. })
+	));
+}
+
+#[test]
+fn rollentupel_decken_unavailability_kanon_ab() {
+	assert_eq!(
+		NICHTVERFUEGBARKEIT_ROLLENTUPEL[0],
+		(Einsatzverantwortlicher, DataProvider)
+	);
+	assert_eq!(
+		NICHTVERFUEGBARKEIT_ROLLENTUPEL[1],
+		(DataProvider, Anschlussnetzbetreiber)
+	);
 }

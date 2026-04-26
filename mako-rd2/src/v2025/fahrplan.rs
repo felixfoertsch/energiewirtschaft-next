@@ -4,6 +4,19 @@ use mako_types::ids::MarktpartnerId;
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 use mako_types::reducer::ReducerOutput;
 use mako_types::rolle::MarktRolle;
+use mako_types::rolle::MarktRolle::*;
+
+pub const FAHRPLAN_ROLLENTUPEL: &[(MarktRolle, MarktRolle)] = &[
+	(Einsatzverantwortlicher, Uebertragungsnetzbetreiber),
+	(Einsatzverantwortlicher, DataProvider),
+	(DataProvider, Anschlussnetzbetreiber),
+	(Anschlussnetzbetreiber, Einsatzverantwortlicher),
+	(Anschlussnetzbetreiber, DataProvider),
+	(Netzbetreiber, Anschlussnetzbetreiber),
+	(AnfordernderNetzbetreiber, DataProvider),
+	(DataProvider, Netzbetreiber),
+	(AnfordernderNetzbetreiber, Anschlussnetzbetreiber),
+];
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FahrplanState {
@@ -43,12 +56,13 @@ pub fn reduce(
 		(FahrplanState::Idle, FahrplanEvent::FahrplanGesendet(fp)) => {
 			let absender = MarktpartnerId::new("9900000000003").expect("valid id");
 			let empfaenger = MarktpartnerId::new("9900000000010").expect("valid id");
+			let (absender_rolle, empfaenger_rolle) = FAHRPLAN_ROLLENTUPEL[0];
 			let nachricht = Nachricht {
 				absender: absender.clone(),
-				absender_rolle: MarktRolle::Einsatzverantwortlicher,
+				absender_rolle,
 				empfaenger,
-				empfaenger_rolle: MarktRolle::Uebertragungsnetzbetreiber,
-			pruef_id: None,
+				empfaenger_rolle,
+				pruef_id: None,
 				payload: NachrichtenPayload::RdFahrplan(fp.clone()),
 			};
 			Ok(ReducerOutput {
@@ -60,32 +74,29 @@ pub fn reduce(
 			})
 		}
 
-		(
-			FahrplanState::FahrplanGesendet { ressource_id, .. },
-			FahrplanEvent::Weitergeleitet,
-		) => Ok(ReducerOutput {
-			state: FahrplanState::Weitergeleitet { ressource_id },
-			nachrichten: vec![],
-		}),
+		(FahrplanState::FahrplanGesendet { ressource_id, .. }, FahrplanEvent::Weitergeleitet) => {
+			Ok(ReducerOutput {
+				state: FahrplanState::Weitergeleitet { ressource_id },
+				nachrichten: vec![],
+			})
+		}
 
-		(
-			FahrplanState::Weitergeleitet { ressource_id },
-			FahrplanEvent::Bestaetigt,
-		) => Ok(ReducerOutput {
-			state: FahrplanState::Bestaetigt { ressource_id },
-			nachrichten: vec![],
-		}),
+		(FahrplanState::Weitergeleitet { ressource_id }, FahrplanEvent::Bestaetigt) => {
+			Ok(ReducerOutput {
+				state: FahrplanState::Bestaetigt { ressource_id },
+				nachrichten: vec![],
+			})
+		}
 
-		(
-			FahrplanState::Weitergeleitet { ressource_id },
-			FahrplanEvent::Abgelehnt { grund },
-		) => Ok(ReducerOutput {
-			state: FahrplanState::Abgelehnt {
-				ressource_id,
-				grund,
-			},
-			nachrichten: vec![],
-		}),
+		(FahrplanState::Weitergeleitet { ressource_id }, FahrplanEvent::Abgelehnt { grund }) => {
+			Ok(ReducerOutput {
+				state: FahrplanState::Abgelehnt {
+					ressource_id,
+					grund,
+				},
+				nachrichten: vec![],
+			})
+		}
 
 		(state, event) => Err(ProzessFehler::UngueltigerUebergang {
 			state: format!("{state:?}"),

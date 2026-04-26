@@ -2,14 +2,14 @@ use chrono::NaiveDateTime;
 
 use mako_types::fehler::ProzessFehler;
 use mako_types::gpke_nachrichten::{
-	MsconsEinspeiseMesswerte, Messwert, MesswertStatus, UtilmdAnmeldungErzeugung,
+	Messwert, MesswertStatus, MsconsEinspeiseMesswerte, UtilmdAnmeldungErzeugung,
 };
 use mako_types::ids::{MaLoId, MarktpartnerId};
 use mako_types::nachricht::NachrichtenPayload;
-use mako_types::rolle::MarktRolle;
+use mako_types::rolle::MarktRolle::*;
 
 use super::erzeugungsanlagen::{
-	ErzeugungsanlagenEvent, ErzeugungsanlagenState, reduce,
+	ERZEUGUNGSANLAGEN_ROLLENTUPEL, ErzeugungsanlagenEvent, ErzeugungsanlagenState, reduce,
 };
 
 fn malo() -> MaLoId {
@@ -35,11 +35,8 @@ fn messwerte() -> MsconsEinspeiseMesswerte {
 	MsconsEinspeiseMesswerte {
 		malo_id: malo(),
 		werte: vec![Messwert {
-			zeitpunkt: NaiveDateTime::parse_from_str(
-				"2025-07-01 00:00:00",
-				"%Y-%m-%d %H:%M:%S",
-			)
-			.unwrap(),
+			zeitpunkt: NaiveDateTime::parse_from_str("2025-07-01 00:00:00", "%Y-%m-%d %H:%M:%S")
+				.unwrap(),
 			wert: 42.0,
 			einheit: "kWh".to_string(),
 			status: MesswertStatus::Gemessen,
@@ -90,10 +87,13 @@ fn eingegangen_plus_bestaetigt_sends_message() {
 	assert_eq!(out.nachrichten.len(), 1);
 	let msg = &out.nachrichten[0];
 	assert_eq!(msg.absender, nb_id());
-	assert_eq!(msg.absender_rolle, MarktRolle::Netzbetreiber);
+	assert_eq!(msg.absender_rolle, Netzbetreiber);
 	assert_eq!(msg.empfaenger, betreiber_id());
-	assert_eq!(msg.empfaenger_rolle, MarktRolle::BetreiberErzeugungsanlage);
-	assert!(matches!(msg.payload, NachrichtenPayload::UtilmdAnmeldungErzeugung(_)));
+	assert_eq!(msg.empfaenger_rolle, BetreiberErzeugungsanlage);
+	assert!(matches!(
+		msg.payload,
+		NachrichtenPayload::UtilmdAnmeldungErzeugung(_)
+	));
 }
 
 #[test]
@@ -103,8 +103,7 @@ fn bestaetigt_plus_zuordnung_informiert() {
 		anlagenbetreiber: betreiber_id(),
 		nb: nb_id(),
 	};
-	let out = reduce(state, ErzeugungsanlagenEvent::ZuordnungInformiert)
-		.expect("should succeed");
+	let out = reduce(state, ErzeugungsanlagenEvent::ZuordnungInformiert).expect("should succeed");
 	assert_eq!(
 		out.state,
 		ErzeugungsanlagenState::ZuordnungInformiert {
@@ -136,6 +135,9 @@ fn zuordnung_informiert_plus_messwerte() {
 		}
 	);
 	assert_eq!(out.nachrichten.len(), 1);
+	assert_eq!(out.nachrichten[0].absender_rolle, Messstellenbetreiber);
+	assert_eq!(out.nachrichten[0].empfaenger, nb_id());
+	assert_eq!(out.nachrichten[0].empfaenger_rolle, Netzbetreiber);
 	assert!(matches!(
 		out.nachrichten[0].payload,
 		NachrichtenPayload::MsconsEinspeiseMesswerte(_)
@@ -149,22 +151,33 @@ fn full_happy_path() {
 		ErzeugungsanlagenEvent::AnmeldungEmpfangen(anmeldung()),
 	)
 	.expect("step 1");
-	assert!(matches!(out.state, ErzeugungsanlagenState::AnmeldungEingegangen { .. }));
+	assert!(matches!(
+		out.state,
+		ErzeugungsanlagenState::AnmeldungEingegangen { .. }
+	));
 
 	let out = reduce(out.state, ErzeugungsanlagenEvent::Bestaetigt).expect("step 2");
-	assert!(matches!(out.state, ErzeugungsanlagenState::Bestaetigt { .. }));
+	assert!(matches!(
+		out.state,
+		ErzeugungsanlagenState::Bestaetigt { .. }
+	));
 	assert_eq!(out.nachrichten.len(), 1);
 
-	let out = reduce(out.state, ErzeugungsanlagenEvent::ZuordnungInformiert)
-		.expect("step 3");
-	assert!(matches!(out.state, ErzeugungsanlagenState::ZuordnungInformiert { .. }));
+	let out = reduce(out.state, ErzeugungsanlagenEvent::ZuordnungInformiert).expect("step 3");
+	assert!(matches!(
+		out.state,
+		ErzeugungsanlagenState::ZuordnungInformiert { .. }
+	));
 
 	let out = reduce(
 		out.state,
 		ErzeugungsanlagenEvent::EinspeiseMesswerteEmpfangen(messwerte()),
 	)
 	.expect("step 4");
-	assert!(matches!(out.state, ErzeugungsanlagenState::MesswerteAktiv { .. }));
+	assert!(matches!(
+		out.state,
+		ErzeugungsanlagenState::MesswerteAktiv { .. }
+	));
 }
 
 // --- Rejection ---
@@ -199,8 +212,14 @@ fn eingegangen_plus_abgelehnt() {
 
 #[test]
 fn idle_cannot_receive_bestaetigt() {
-	let result = reduce(ErzeugungsanlagenState::Idle, ErzeugungsanlagenEvent::Bestaetigt);
-	assert!(matches!(result, Err(ProzessFehler::UngueltigerUebergang { .. })));
+	let result = reduce(
+		ErzeugungsanlagenState::Idle,
+		ErzeugungsanlagenEvent::Bestaetigt,
+	);
+	assert!(matches!(
+		result,
+		Err(ProzessFehler::UngueltigerUebergang { .. })
+	));
 }
 
 #[test]
@@ -214,7 +233,10 @@ fn bestaetigt_cannot_receive_anmeldung() {
 		state,
 		ErzeugungsanlagenEvent::AnmeldungEmpfangen(anmeldung()),
 	);
-	assert!(matches!(result, Err(ProzessFehler::UngueltigerUebergang { .. })));
+	assert!(matches!(
+		result,
+		Err(ProzessFehler::UngueltigerUebergang { .. })
+	));
 }
 
 #[test]
@@ -224,7 +246,10 @@ fn messwerte_aktiv_cannot_receive_any_event() {
 		anlagenbetreiber: betreiber_id(),
 	};
 	let result = reduce(state, ErzeugungsanlagenEvent::Bestaetigt);
-	assert!(matches!(result, Err(ProzessFehler::UngueltigerUebergang { .. })));
+	assert!(matches!(
+		result,
+		Err(ProzessFehler::UngueltigerUebergang { .. })
+	));
 }
 
 #[test]
@@ -237,5 +262,38 @@ fn abgelehnt_cannot_receive_any_event() {
 		state,
 		ErzeugungsanlagenEvent::AnmeldungEmpfangen(anmeldung()),
 	);
-	assert!(matches!(result, Err(ProzessFehler::UngueltigerUebergang { .. })));
+	assert!(matches!(
+		result,
+		Err(ProzessFehler::UngueltigerUebergang { .. })
+	));
+}
+
+#[test]
+fn rollentupel_decken_mpes_kanon_ab() {
+	assert_eq!(
+		ERZEUGUNGSANLAGEN_ROLLENTUPEL[0],
+		(Netzbetreiber, BetreiberErzeugungsanlage)
+	);
+	assert_eq!(
+		ERZEUGUNGSANLAGEN_ROLLENTUPEL[1],
+		(BetreiberErzeugungsanlage, Direktvermarkter)
+	);
+	assert_eq!(
+		ERZEUGUNGSANLAGEN_ROLLENTUPEL[2],
+		(Direktvermarkter, BetreiberErzeugungsanlage)
+	);
+	assert_eq!(ERZEUGUNGSANLAGEN_ROLLENTUPEL[3], (Lieferant, Netzbetreiber));
+	assert_eq!(ERZEUGUNGSANLAGEN_ROLLENTUPEL[4], (Netzbetreiber, Lieferant));
+	assert_eq!(
+		ERZEUGUNGSANLAGEN_ROLLENTUPEL[5],
+		(Netzbetreiber, Uebertragungsnetzbetreiber)
+	);
+	assert_eq!(
+		ERZEUGUNGSANLAGEN_ROLLENTUPEL[6],
+		(Uebertragungsnetzbetreiber, Netzbetreiber)
+	);
+	assert_eq!(
+		ERZEUGUNGSANLAGEN_ROLLENTUPEL[7],
+		(Messstellenbetreiber, Netzbetreiber)
+	);
 }

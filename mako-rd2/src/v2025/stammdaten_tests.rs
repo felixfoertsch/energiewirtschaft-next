@@ -1,17 +1,15 @@
 use mako_types::fehler::ProzessFehler;
 use mako_types::gpke_nachrichten::{RdStammdaten, RessourceTyp};
 use mako_types::ids::{MaLoId, MarktpartnerId};
+use mako_types::rolle::MarktRolle::*;
 
-use super::stammdaten::{StammdatenEvent, StammdatenState, reduce};
+use super::stammdaten::{STAMMDATEN_ROLLENTUPEL, StammdatenEvent, StammdatenState, reduce};
 
 fn ressource_id() -> String {
 	"TR-001".to_string()
 }
 fn absender_id() -> MarktpartnerId {
 	MarktpartnerId::new("9900000000003").unwrap()
-}
-fn empfaenger_id() -> MarktpartnerId {
-	MarktpartnerId::new("9900000000010").unwrap()
 }
 
 fn stammdaten_msg() -> RdStammdaten {
@@ -30,8 +28,13 @@ fn happy_path_idle_to_bestaetigt() {
 		StammdatenEvent::StammdatenGesendet(stammdaten_msg()),
 	)
 	.expect("step 1");
-	assert!(matches!(out.state, StammdatenState::StammdatenGesendet { .. }));
+	assert!(matches!(
+		out.state,
+		StammdatenState::StammdatenGesendet { .. }
+	));
 	assert_eq!(out.nachrichten.len(), 1);
+	assert_eq!(out.nachrichten[0].absender_rolle, Anschlussnetzbetreiber);
+	assert_eq!(out.nachrichten[0].empfaenger_rolle, DataProvider);
 
 	let out = reduce(out.state, StammdatenEvent::Weitergeleitet).expect("step 2");
 	assert!(matches!(out.state, StammdatenState::Weitergeleitet { .. }));
@@ -70,7 +73,10 @@ fn rejection_from_weitergeleitet() {
 #[test]
 fn idle_cannot_receive_bestaetigt() {
 	let result = reduce(StammdatenState::Idle, StammdatenEvent::Bestaetigt);
-	assert!(matches!(result, Err(ProzessFehler::UngueltigerUebergang { .. })));
+	assert!(matches!(
+		result,
+		Err(ProzessFehler::UngueltigerUebergang { .. })
+	));
 }
 
 #[test]
@@ -79,5 +85,38 @@ fn bestaetigt_is_terminal() {
 		ressource_id: ressource_id(),
 	};
 	let result = reduce(state, StammdatenEvent::Weitergeleitet);
-	assert!(matches!(result, Err(ProzessFehler::UngueltigerUebergang { .. })));
+	assert!(matches!(
+		result,
+		Err(ProzessFehler::UngueltigerUebergang { .. })
+	));
+}
+
+#[test]
+fn rollentupel_decken_stammdaten_kanon_ab() {
+	assert_eq!(
+		STAMMDATEN_ROLLENTUPEL[0],
+		(Einsatzverantwortlicher, DataProvider)
+	);
+	assert_eq!(
+		STAMMDATEN_ROLLENTUPEL[1],
+		(DataProvider, Anschlussnetzbetreiber)
+	);
+	assert_eq!(
+		STAMMDATEN_ROLLENTUPEL[2],
+		(Anschlussnetzbetreiber, DataProvider)
+	);
+	assert_eq!(STAMMDATEN_ROLLENTUPEL[3], (DataProvider, Netzbetreiber));
+	assert_eq!(STAMMDATEN_ROLLENTUPEL[4], (Netzbetreiber, DataProvider));
+	assert_eq!(
+		STAMMDATEN_ROLLENTUPEL[5],
+		(Netzbetreiber, Anschlussnetzbetreiber)
+	);
+	assert_eq!(
+		STAMMDATEN_ROLLENTUPEL[6],
+		(DataProvider, Bilanzkreisverantwortlicher)
+	);
+	assert_eq!(
+		STAMMDATEN_ROLLENTUPEL[7],
+		(Bilanzkreisverantwortlicher, Uebertragungsnetzbetreiber)
+	);
 }

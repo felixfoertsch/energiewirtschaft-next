@@ -1,11 +1,21 @@
 use mako_types::fehler::ProzessFehler;
-use mako_types::gpke_nachrichten::{
-	MsconsEinspeiseMesswerte, UtilmdAnmeldungErzeugung,
-};
+use mako_types::gpke_nachrichten::{MsconsEinspeiseMesswerte, UtilmdAnmeldungErzeugung};
 use mako_types::ids::{MaLoId, MarktpartnerId};
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 use mako_types::reducer::ReducerOutput;
 use mako_types::rolle::MarktRolle;
+use mako_types::rolle::MarktRolle::*;
+
+pub const ERZEUGUNGSANLAGEN_ROLLENTUPEL: &[(MarktRolle, MarktRolle)] = &[
+	(Netzbetreiber, BetreiberErzeugungsanlage),
+	(BetreiberErzeugungsanlage, Direktvermarkter),
+	(Direktvermarkter, BetreiberErzeugungsanlage),
+	(Lieferant, Netzbetreiber),
+	(Netzbetreiber, Lieferant),
+	(Netzbetreiber, Uebertragungsnetzbetreiber),
+	(Uebertragungsnetzbetreiber, Netzbetreiber),
+	(Messstellenbetreiber, Netzbetreiber),
+];
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ErzeugungsanlagenState {
@@ -37,10 +47,7 @@ pub enum ErzeugungsanlagenState {
 		anlagenbetreiber: MarktpartnerId,
 	},
 	/// Terminal failure
-	Abgelehnt {
-		malo: MaLoId,
-		grund: String,
-	},
+	Abgelehnt { malo: MaLoId, grund: String },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -75,24 +82,26 @@ pub fn reduce(
 		// 2. AnmeldungEingegangen + Bestaetigt → Bestaetigt
 		(
 			ErzeugungsanlagenState::AnmeldungEingegangen {
-				malo, anlagenbetreiber, nb, ..
+				malo,
+				anlagenbetreiber,
+				nb,
+				..
 			},
 			ErzeugungsanlagenEvent::Bestaetigt,
 		) => {
+			let (absender_rolle, empfaenger_rolle) = ERZEUGUNGSANLAGEN_ROLLENTUPEL[0];
 			let nachricht = Nachricht {
 				absender: nb.clone(),
-				absender_rolle: MarktRolle::Netzbetreiber,
+				absender_rolle,
 				empfaenger: anlagenbetreiber.clone(),
-				empfaenger_rolle: MarktRolle::BetreiberErzeugungsanlage,
-			pruef_id: None,
-				payload: NachrichtenPayload::UtilmdAnmeldungErzeugung(
-					UtilmdAnmeldungErzeugung {
-						malo_id: malo.clone(),
-						anlagenbetreiber: anlagenbetreiber.clone(),
-						eeg_anlage: true,
-						installierte_leistung_kw: 0.0,
-					},
-				),
+				empfaenger_rolle,
+				pruef_id: None,
+				payload: NachrichtenPayload::UtilmdAnmeldungErzeugung(UtilmdAnmeldungErzeugung {
+					malo_id: malo.clone(),
+					anlagenbetreiber: anlagenbetreiber.clone(),
+					eeg_anlage: true,
+					installierte_leistung_kw: 0.0,
+				}),
 			};
 			Ok(ReducerOutput {
 				state: ErzeugungsanlagenState::Bestaetigt {
@@ -116,7 +125,9 @@ pub fn reduce(
 		// 3. Bestaetigt + ZuordnungInformiert → ZuordnungInformiert
 		(
 			ErzeugungsanlagenState::Bestaetigt {
-				malo, anlagenbetreiber, nb,
+				malo,
+				anlagenbetreiber,
+				nb,
 			},
 			ErzeugungsanlagenEvent::ZuordnungInformiert,
 		) => Ok(ReducerOutput {
@@ -131,16 +142,20 @@ pub fn reduce(
 		// 4. ZuordnungInformiert + EinspeiseMesswerteEmpfangen → MesswerteAktiv
 		(
 			ErzeugungsanlagenState::ZuordnungInformiert {
-				malo, anlagenbetreiber, nb,
+				malo,
+				anlagenbetreiber,
+				nb,
 			},
 			ErzeugungsanlagenEvent::EinspeiseMesswerteEmpfangen(m),
 		) => {
+			let msb = MarktpartnerId::new("9900000000027").expect("valid MSB id");
+			let (absender_rolle, empfaenger_rolle) = ERZEUGUNGSANLAGEN_ROLLENTUPEL[7];
 			let nachricht = Nachricht {
-				absender: nb,
-				absender_rolle: MarktRolle::Netzbetreiber,
-				empfaenger: anlagenbetreiber.clone(),
-				empfaenger_rolle: MarktRolle::BetreiberErzeugungsanlage,
-			pruef_id: None,
+				absender: msb,
+				absender_rolle,
+				empfaenger: nb,
+				empfaenger_rolle,
+				pruef_id: None,
 				payload: NachrichtenPayload::MsconsEinspeiseMesswerte(m),
 			};
 			Ok(ReducerOutput {

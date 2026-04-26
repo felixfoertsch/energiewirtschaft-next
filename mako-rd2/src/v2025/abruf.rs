@@ -4,6 +4,19 @@ use mako_types::ids::MarktpartnerId;
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
 use mako_types::reducer::ReducerOutput;
 use mako_types::rolle::MarktRolle;
+use mako_types::rolle::MarktRolle::*;
+
+pub const ABRUF_ROLLENTUPEL: &[(MarktRolle, MarktRolle)] = &[
+	(AnfordernderNetzbetreiber, Anschlussnetzbetreiber),
+	(AnfordernderNetzbetreiber, DataProvider),
+	(DataProvider, Anschlussnetzbetreiber),
+	(Anschlussnetzbetreiber, DataProvider),
+	(DataProvider, Einsatzverantwortlicher),
+	(Einsatzverantwortlicher, BetreiberTechnischeRessource),
+	(DataProvider, Bilanzkreisverantwortlicher),
+	(Bilanzkreisverantwortlicher, Uebertragungsnetzbetreiber),
+	(DataProvider, AnfordernderNetzbetreiber),
+];
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AbrufState {
@@ -43,12 +56,13 @@ pub fn reduce(
 		(AbrufState::Idle, AbrufEvent::AbrufGesendet(ak)) => {
 			let absender = MarktpartnerId::new("9900000000010").expect("valid id");
 			let empfaenger = MarktpartnerId::new("9900000000003").expect("valid id");
+			let (absender_rolle, empfaenger_rolle) = ABRUF_ROLLENTUPEL[0];
 			let nachricht = Nachricht {
 				absender: absender.clone(),
-				absender_rolle: MarktRolle::Uebertragungsnetzbetreiber,
+				absender_rolle,
 				empfaenger,
-				empfaenger_rolle: MarktRolle::Netzbetreiber,
-			pruef_id: None,
+				empfaenger_rolle,
+				pruef_id: None,
 				payload: NachrichtenPayload::RdAktivierung(ak.clone()),
 			};
 			Ok(ReducerOutput {
@@ -60,32 +74,27 @@ pub fn reduce(
 			})
 		}
 
-		(
-			AbrufState::AbrufGesendet { ressource_id, .. },
-			AbrufEvent::Weitergeleitet,
-		) => Ok(ReducerOutput {
-			state: AbrufState::Weitergeleitet { ressource_id },
-			nachrichten: vec![],
-		}),
+		(AbrufState::AbrufGesendet { ressource_id, .. }, AbrufEvent::Weitergeleitet) => {
+			Ok(ReducerOutput {
+				state: AbrufState::Weitergeleitet { ressource_id },
+				nachrichten: vec![],
+			})
+		}
 
-		(
-			AbrufState::Weitergeleitet { ressource_id },
-			AbrufEvent::Quittiert,
-		) => Ok(ReducerOutput {
+		(AbrufState::Weitergeleitet { ressource_id }, AbrufEvent::Quittiert) => Ok(ReducerOutput {
 			state: AbrufState::Quittiert { ressource_id },
 			nachrichten: vec![],
 		}),
 
-		(
-			AbrufState::Weitergeleitet { ressource_id },
-			AbrufEvent::Abgelehnt { grund },
-		) => Ok(ReducerOutput {
-			state: AbrufState::Abgelehnt {
-				ressource_id,
-				grund,
-			},
-			nachrichten: vec![],
-		}),
+		(AbrufState::Weitergeleitet { ressource_id }, AbrufEvent::Abgelehnt { grund }) => {
+			Ok(ReducerOutput {
+				state: AbrufState::Abgelehnt {
+					ressource_id,
+					grund,
+				},
+				nachrichten: vec![],
+			})
+		}
 
 		(state, event) => Err(ProzessFehler::UngueltigerUebergang {
 			state: format!("{state:?}"),
