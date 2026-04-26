@@ -2,6 +2,7 @@ pub mod kapazitaet;
 pub mod netzkontoabrechnung;
 pub mod brennwert;
 pub mod ausspeisepunkt;
+pub mod rollen;
 
 #[cfg(test)]
 mod kapazitaet_tests;

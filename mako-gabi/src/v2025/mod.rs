@@ -3,6 +3,7 @@ pub mod bilanzierungsdaten;
 pub mod nominierung;
 pub mod mehrmindermengen;
 pub mod clearing;
+pub mod rollen;
 
 #[cfg(test)]
 mod bilanzkreiszuordnung_tests;
