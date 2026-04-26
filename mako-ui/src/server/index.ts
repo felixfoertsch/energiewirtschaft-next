@@ -107,6 +107,25 @@ function nachrichtMeta(rolle: string, box: string, datei: string) {
 
 // --- Routes ---
 
+// Process catalog: one shot at startup, cached for the process lifetime.
+// The catalog only changes when the engine is recompiled — restarting the
+// server is the same trigger anyway, so a forever-cache is correct.
+let prozesseCache: unknown | null = null;
+function prozesseFromCli(): unknown {
+	if (prozesseCache !== null) return prozesseCache;
+	const ausgabe = cli(["prozesse-json"]);
+	prozesseCache = JSON.parse(ausgabe);
+	return prozesseCache;
+}
+
+app.get(`${API}/prozesse`, (_req: Request, res: Response) => {
+	try {
+		res.json(prozesseFromCli());
+	} catch (e) {
+		res.status(500).json({ error: `Prozesskatalog nicht ladbar: ${String(e)}` });
+	}
+});
+
 app.get(`${API}/rollen`, (_req: Request, res: Response) => {
 	const dirs = readdirSync(MARKT).filter((d) => {
 		const p = join(MARKT, d);
