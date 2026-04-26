@@ -1,4 +1,11 @@
 /target/
-Cargo.lock
 .worktrees/
 .superpowers/
+mako-sim/simulation/
+
+# External regulatory archives (BNetzA spec dumps, multi-GB).
+# Document where to fetch in README rather than committing.
+docs/2026_*_mako_*_aktuell_gueltig/
+docs/2026_*_mako_*_archiviert/
+docs/mako_aktuell_kostenfrei_*/
+docs/mako_zukuenftig_kostenfrei_*/
