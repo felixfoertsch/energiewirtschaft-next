@@ -582,10 +582,6 @@ function isoDate(d: Date): string {
 	return `${y}-${m}-${day}`;
 }
 
-function isoDateTime(d: Date): string {
-	return `${isoDate(d)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
 // Walks the JSON-Schema and fills field values from FormContext where the
 // field name matches a known German MaKo identifier. Pure function, returns a
 // new object — never mutates inputs.
@@ -593,23 +589,52 @@ export function seedFormDefaults(
 	schema: RJSFSchema,
 	context: FormContext,
 ): Record<string, unknown> {
-	const props = (schema as { properties?: Record<string, RJSFSchema> }).properties ?? {};
-	const out: Record<string, unknown> = {};
-	const heute = new Date();
-	const morgen = new Date(heute.getTime() + 24 * 60 * 60 * 1000);
-	const in30 = new Date(heute.getTime() + 30 * 24 * 60 * 60 * 1000);
-
-	for (const [key, prop] of Object.entries(props)) {
-		const value = defaultForField(key, prop, context, { heute, morgen, in30 });
-		if (value !== undefined) out[key] = value;
-	}
-	return out;
+	return seedObject(schema, schema, context, {
+		heute: context.heute,
+		morgen: context.morgen,
+		in30: context.in_dreissig_tagen,
+	});
 }
 
 interface DateBag {
-	heute: Date;
-	morgen: Date;
-	in30: Date;
+	heute: string;
+	morgen: string;
+	in30: string;
+}
+
+interface SchemaObject {
+	$ref?: string;
+	default?: unknown;
+	definitions?: Record<string, RJSFSchema>;
+	enum?: unknown[];
+	format?: string;
+	items?: RJSFSchema | RJSFSchema[];
+	minItems?: number;
+	oneOf?: RJSFSchema[];
+	anyOf?: RJSFSchema[];
+	pattern?: string;
+	properties?: Record<string, RJSFSchema>;
+	required?: string[];
+	type?: string | string[];
+}
+
+function seedObject(
+	schema: RJSFSchema,
+	root: RJSFSchema,
+	ctx: FormContext,
+	dates: DateBag,
+): Record<string, unknown> {
+	const resolved = resolveSchema(schema, root);
+	const props = asSchemaObject(resolved).properties ?? {};
+	const required = new Set(asSchemaObject(resolved).required ?? []);
+	const out: Record<string, unknown> = {};
+
+	for (const [key, prop] of Object.entries(props)) {
+		const value = defaultForField(key, prop, ctx, dates, root, required.has(key));
+		if (value !== undefined) out[key] = value;
+	}
+
+	return out;
 }
 
 function defaultForField(
@@ -617,15 +642,62 @@ function defaultForField(
 	prop: RJSFSchema,
 	ctx: FormContext,
 	dates: DateBag,
+	root: RJSFSchema,
+	required: boolean,
+): unknown {
+	const resolved = resolveSchema(prop, root);
+	const schema = asSchemaObject(resolved);
+	const worldDefault = defaultForKnownField(rawKey, resolved, ctx, dates);
+	if (worldDefault !== undefined) return worldDefault;
+	if (Object.hasOwn(schema, "default")) return cloneJsonValue(schema.default);
+
+	const enumValue = enumDefault(resolved);
+	if (enumValue !== undefined) return enumValue;
+
+	const type = schemaType(resolved);
+	if (type === "object" || schema.properties) return seedObject(resolved, root, ctx, dates);
+	if (type === "array" || schema.items)
+		return arrayDefault(rawKey, resolved, ctx, dates, root, required);
+
+	const optionDefault = schemaOptionDefault(rawKey, resolved, ctx, dates, root, required);
+	if (optionDefault !== undefined) return optionDefault;
+
+	if (type === "boolean") return false;
+	if (type === "integer" || type === "number") return required ? 1 : undefined;
+	if (type === "string" || schema.format || schema.pattern) {
+		return stringFallback(rawKey, resolved, ctx, dates, required);
+	}
+
+	return required ? "BEISPIEL" : undefined;
+}
+
+function defaultForKnownField(
+	rawKey: string,
+	prop: RJSFSchema,
+	ctx: FormContext,
+	dates: DateBag,
 ): unknown {
 	const key = rawKey.toLowerCase();
+	const compactKey = key.replaceAll("_", "").replaceAll("-", "");
 	const malo = ctx.malo;
 
-	if (key === "malo_id" || key === "marktlokations_id") return malo?.id;
-	if (key === "melo_id" || key === "messlokations_id") return malo?.melo_id;
-	if (key === "zaehlernummer" || key === "geraetenummer") return malo?.zaehlernummer;
-	if (key === "bilanzkreis" || key === "bk_id") return malo?.bilanzkreis;
-	if (key === "ressource_id" || key === "tr_id") return malo?.ressource_id;
+	if (key in ROLLEN_INDEX) return malo?.beziehungen[key] ?? mpIdForRolle(key);
+	if (key === "mp_id" || key === "marktpartner_id" || key === "marktpartnerid")
+		return ctx.absender.mpId;
+	if (key === "malo_id" || key === "marktlokations_id") return malo?.id ?? MALOS[0]?.id;
+	if (key === "melo_id" || key === "messlokations_id")
+		return malo?.melo_id ?? "DE0001234567890123456789012345678";
+	if (key === "zaehlernummer" || key === "geraetenummer" || key === "zaehler_id")
+		return malo?.zaehlernummer ?? "1EMH0012345678";
+	if (key === "bilanzkreis" || key === "bk_id")
+		return malo?.bilanzkreis ?? (malo?.sparte === "gas" ? "GAS-THE-RH-001" : "BKVRH-001");
+	if (key === "ressource_id" || key === "tr_id") return malo?.ressource_id ?? "TR-PV-HUERTH";
+	if (key === "tranche_id") return "TRANCHE-RH-2026-001";
+	if (key === "lastgang_id") return "LG-RH-2026-0001";
+	if (key === "vertragskontonummer") return `VK-${malo?.id ?? "51111111111"}`;
+	if (key === "pruefidentifikator" || key === "prüfidentifikator") return "11042";
+	if (key === "dvgw_nr" || key === "dvgw_nummer") return "9870078900001";
+	if (key === "nominierungs_id") return "NOM-THE-2026-0001";
 	if (key === "absender" || key === "absender_id" || key === "absender_mp_id")
 		return ctx.absender.mpId;
 	if (key === "empfaenger" || key === "empfaenger_id" || key === "empfaenger_mp_id")
@@ -633,18 +705,35 @@ function defaultForField(
 
 	if (key === "vorname") return malo?.kunde?.vorname ?? "Hans";
 	if (key === "nachname") return malo?.kunde?.nachname ?? "Schmidt";
-	if (key === "strasse") return malo?.anschrift.strasse;
-	if (key === "hausnummer") return malo?.anschrift.hausnummer;
-	if (key === "postleitzahl" || key === "plz") return malo?.anschrift.plz;
-	if (key === "ort") return malo?.anschrift.ort;
+	if (key === "name" || key === "firmenname" || key === "firma") return ctx.absender.firma;
+	if (key === "kundenname") {
+		const vorname = malo?.kunde?.vorname ?? "Hans";
+		const nachname = malo?.kunde?.nachname ?? "Schmidt";
+		return `${vorname} ${nachname}`;
+	}
+	if (key === "geburtsdatum") return "1985-04-12";
+	if (key === "email" || key === "e_mail") return "hans.schmidt@example.test";
+	if (key === "telefon" || key === "telefonnummer") return "+492211234567";
+	if (key === "strasse") return malo?.anschrift.strasse ?? MALOS[0]?.anschrift.strasse;
+	if (key === "hausnummer") return malo?.anschrift.hausnummer ?? MALOS[0]?.anschrift.hausnummer;
+	if (key === "postleitzahl" || key === "plz")
+		return malo?.anschrift.plz ?? MALOS[0]?.anschrift.plz;
+	if (key === "ort") return malo?.anschrift.ort ?? MALOS[0]?.anschrift.ort;
 
-	if (key.includes("netzgebiet")) return "Netzgebiet Rheinland";
-	if (key === "ressource_typ") return enumDefault(prop, "TechnischeRessource");
-	if (key === "ressourcetyp") return enumDefault(prop, "TechnischeRessource");
+	if (key.includes("netzgebiet"))
+		return key.endsWith("_id") ? "RHEINLAND-KOELN" : "Netzgebiet Rheinland";
+	if (key === "ressource_typ" || key === "ressourcetyp")
+		return enumDefault(prop, "TechnischeRessource") ?? "TechnischeRessource";
 	if (key === "sparte") return enumDefault(prop, malo?.sparte === "gas" ? "Gas" : "Strom");
-	if (key === "transaktionsgrund") return enumDefault(prop);
+	if (key === "transaktionsgrund") return enumDefault(prop) ?? "Lieferantenwechsel";
 	if (key === "grund") return "Wartung";
-	if (key === "anlass") return enumDefault(prop);
+	if (key === "anlass") return enumDefault(prop) ?? "Stammdatenänderung";
+	if (key === "rolle") return ctx.absender.rolle;
+	if (key === "rechnungstyp") return enumDefault(prop, "Netznutzung") ?? "Netznutzung";
+	if (key === "rechnungsnummer") return "RE-2026-0001";
+	if (key === "bezeichnung") return "Netznutzung Familie Schmidt";
+	if (key === "status") return enumDefault(prop, "Gemessen") ?? "Gemessen";
+	if (key === "einheit") return malo?.sparte === "gas" ? "kWh" : "kWh";
 
 	if (
 		key === "vertragsbeginn" ||
@@ -670,31 +759,223 @@ function defaultForField(
 	if (key === "stichtag" || key === "datum" || key === "zeitpunkt")
 		return formatForType(prop, dates.heute);
 	if (key === "erstellungsdatum") return formatForType(prop, dates.heute);
+	if (key === "ausfuehrungsdatum" || key === "ausführungsdatum")
+		return formatForType(prop, dates.morgen);
+	if (key === "gueltig_ab" || key === "gültig_ab") return formatForType(prop, dates.morgen);
+	if (key === "gueltig_bis" || key === "gültig_bis") return formatForType(prop, dates.in30);
+	if (key === "valuta" || key === "rechnungsdatum" || key === "meldetag")
+		return formatForType(prop, dates.heute);
+	if (key === "faelligkeit" || key === "fälligkeit") return formatForType(prop, dates.in30);
+	if (key.startsWith("lieferzeitraum_")) {
+		return key.endsWith("_bis")
+			? formatForType(prop, dates.in30)
+			: formatForType(prop, dates.morgen);
+	}
+	if (endsWithDateStart(compactKey)) return formatForType(prop, dates.morgen);
+	if (endsWithDateEnd(compactKey)) return formatForType(prop, dates.in30);
+	if (endsWithDatePoint(compactKey)) return formatForType(prop, dates.heute);
 
-	if (key === "sollwert_kw") return 25.0;
-	if (key === "installierte_leistung_kw") return 50.0;
-	if (key === "betroffene_leistung_kw") return 100.0;
-	if (key === "menge" || key === "verbrauch") return 1000;
-	if (key === "betrag" || key === "preis" || key === "summe") return 100.0;
+	if (key === "intervall_minuten") return 15;
+	if (key === "sollwert_kw") return 2500.0;
+	if (key === "installierte_leistung_kw") return 8000.0;
+	if (key === "betroffene_leistung_kw") return 1000.0;
+	if (key === "max_leistung_kw") return 11.0;
+	if (key === "leistung_kw") return 11.0;
+	if (key === "peak_kw") return 8.0;
+	if (key === "verbrauch_kwh" || key === "verbrauch")
+		return malo?.sparte === "gas" ? 18500.0 : 3500.0;
+	if (key === "arbeit_kwh") return 3500.0;
+	if (key === "zaehlerstand") return 18250.6;
+	if (key === "wert") return 12.5;
+	if (key === "menge") return 3500.0;
 
-	if (key === "obis_kennzahl") return "1-1:1.8.0";
-	if (key === "ueberragungstyp" || key === "uebertragungstyp") return enumDefault(prop);
+	if (key === "gesamtbetrag_ct") return 15469;
+	if (key === "betrag_ct") return 12999;
+	if (key === "einzelpreis_ct") return 32;
+	if (key === "grundpreis") return 12.5;
+	if (key === "arbeitspreis") return 0.32;
+	if (key === "nettobetrag") return 129.99;
+	if (key === "bruttobetrag") return 154.69;
+	if (key === "mwst") return 24.7;
+	if (key === "steuersatz") return 19.0;
+	if (key === "rabatt") return 5.0;
+	if (key === "betrag" || key === "preis" || key === "summe") return 129.99;
+
+	if (key === "obis_code" || key === "obis_kennzahl") return "1-1:1.8.0";
+	if (key === "tarifart") return enumDefault(prop, "Eintarif") ?? "Eintarif";
+	if (key === "messverfahren") return enumDefault(prop, "RLM") ?? "RLM";
+	if (key === "messlokationstyp") return enumDefault(prop, "Standard") ?? "Standard";
+	if (key === "bilanzierungsverfahren")
+		return enumDefault(prop, "Standardlastprofil") ?? "Standardlastprofil";
+	if (key === "lastprofiltyp") return enumDefault(prop, "H0") ?? "H0";
+	if (key === "ueberragungstyp" || key === "uebertragungstyp")
+		return enumDefault(prop) ?? "Elektronisch";
+
+	if (key === "brennwert") return 11.2;
+	if (key === "zustandszahl") return 0.965;
+	if (key === "nominierungsmenge") return 12000.0;
+	if (key === "kapazitaet" || key === "kapazität") return 5000.0;
+	if (key === "druck") return 16.0;
+	if (key === "temperatur") return 15.0;
+
+	if (key === "dimmstufe" || key === "prozent") return 60;
+	if (key === "regelstufe") return 2;
+	if (key === "dauer_minuten") return 15;
+	if (key === "aktivierungstyp") return enumDefault(prop, "Dimmung") ?? "Dimmung";
+	if (key === "geraetetyp" || key === "gerätetyp") return enumDefault(prop, "Wallbox") ?? "Wallbox";
+	if (key === "steuerung") return enumDefault(prop, "Freigabe") ?? "Freigabe";
+
+	if (key === "aktivierungsart") return enumDefault(prop, "Redispatch") ?? "Redispatch";
+	if (key === "richtung") return enumDefault(prop, "Senkung") ?? "Senkung";
+	if (key === "aktivierungsgrund") return enumDefault(prop) ?? "Netzengpass Rheinland";
+	if (key === "kostenhoehe" || key === "kostenhöhe") return 250.0;
 
 	return undefined;
 }
 
 function enumDefault(prop: RJSFSchema, preferred?: string): unknown {
-	const en = (prop as { enum?: unknown[] }).enum;
-	if (!Array.isArray(en) || en.length === 0) return undefined;
-	if (preferred && en.includes(preferred)) return preferred;
-	return en[0];
+	const values = enumValues(prop);
+	if (values.length === 0) return undefined;
+	if (preferred && values.includes(preferred)) return preferred;
+	return values[0];
 }
 
-function formatForType(prop: RJSFSchema, date: Date): string {
-	const fmt = (prop as { format?: string }).format;
-	if (fmt === "date-time") return isoDateTime(date);
+function formatForType(prop: RJSFSchema, date: string): string {
+	const fmt = asSchemaObject(prop).format;
+	if (fmt === "date-time" || fmt === "partial-date-time") return `${date} 08:00`;
 	if (fmt === "time") return "08:00";
-	return isoDate(date);
+	return date;
+}
+
+function resolveSchema(schema: RJSFSchema, root: RJSFSchema): RJSFSchema {
+	const ref = asSchemaObject(schema).$ref;
+	if (!ref) return schema;
+	const resolved = resolveRef(root, ref);
+	if (!resolved) return schema;
+	const { $ref: _ref, ...siblings } = asSchemaObject(schema);
+	void _ref;
+	return { ...resolved, ...siblings } as RJSFSchema;
+}
+
+function resolveRef(root: RJSFSchema, ref: string): RJSFSchema | undefined {
+	if (!ref.startsWith("#/")) return undefined;
+	const parts = ref
+		.slice(2)
+		.split("/")
+		.map((part) => part.replaceAll("~1", "/").replaceAll("~0", "~"));
+	let current: unknown = root;
+	for (const part of parts) {
+		if (!isRecord(current)) return undefined;
+		current = current[part];
+	}
+	return isRecord(current) ? (current as RJSFSchema) : undefined;
+}
+
+function arrayDefault(
+	rawKey: string,
+	prop: RJSFSchema,
+	ctx: FormContext,
+	dates: DateBag,
+	root: RJSFSchema,
+	required: boolean,
+): unknown[] {
+	const schema = asSchemaObject(prop);
+	if (!required && (schema.minItems ?? 0) < 1) return [];
+	const item = Array.isArray(schema.items) ? schema.items[0] : schema.items;
+	if (!item) return [];
+	return [defaultForField(rawKey, item, ctx, dates, root, true)];
+}
+
+function schemaOptionDefault(
+	rawKey: string,
+	prop: RJSFSchema,
+	ctx: FormContext,
+	dates: DateBag,
+	root: RJSFSchema,
+	required: boolean,
+): unknown {
+	const schema = asSchemaObject(prop);
+	const options = schema.oneOf ?? schema.anyOf ?? [];
+	for (const option of options) {
+		const value = defaultForField(rawKey, option, ctx, dates, root, required);
+		if (value !== undefined) return value;
+	}
+	return undefined;
+}
+
+function stringFallback(
+	rawKey: string,
+	prop: RJSFSchema,
+	ctx: FormContext,
+	dates: DateBag,
+	required: boolean,
+): string {
+	const schema = asSchemaObject(prop);
+	if (schema.format === "date") return dateForField(rawKey, prop, dates);
+	if (schema.format === "date-time" || schema.format === "partial-date-time")
+		return dateForField(rawKey, prop, dates);
+	if (schema.format === "time") return "08:00";
+	if (schema.pattern) return patternDefault(schema.pattern, ctx);
+	return required ? "BEISPIEL" : "";
+}
+
+function patternDefault(pattern: string, ctx: FormContext): string {
+	if (pattern.includes("\\d{13}") || pattern.includes("[0-9]{13}")) return ctx.absender.mpId;
+	if (pattern.includes("\\d{11}") || pattern.includes("[0-9]{11}"))
+		return ctx.malo?.id ?? "51111111111";
+	if (pattern.includes("\\d{32}") || pattern.includes("[0-9]{32}"))
+		return ctx.malo?.melo_id ?? "DE0001234567890123456789012345678";
+	return "0";
+}
+
+function dateForField(rawKey: string, prop: RJSFSchema, dates: DateBag): string {
+	const compactKey = rawKey.toLowerCase().replaceAll("_", "").replaceAll("-", "");
+	if (endsWithDateStart(compactKey)) return formatForType(prop, dates.morgen);
+	if (endsWithDateEnd(compactKey)) return formatForType(prop, dates.in30);
+	return formatForType(prop, dates.heute);
+}
+
+function endsWithDateStart(compactKey: string): boolean {
+	return (
+		compactKey.endsWith("von") ||
+		compactKey.endsWith("ab") ||
+		compactKey.endsWith("beginn") ||
+		compactKey.endsWith("start")
+	);
+}
+
+function endsWithDateEnd(compactKey: string): boolean {
+	return compactKey.endsWith("bis") || compactKey.endsWith("ende");
+}
+
+function endsWithDatePoint(compactKey: string): boolean {
+	return compactKey.endsWith("datum") || compactKey.endsWith("zeitpunkt");
+}
+
+function enumValues(prop: RJSFSchema): unknown[] {
+	const schema = asSchemaObject(prop);
+	if (Array.isArray(schema.enum)) return schema.enum;
+	const options = schema.oneOf ?? schema.anyOf ?? [];
+	return options.flatMap((option) => enumValues(option));
+}
+
+function schemaType(prop: RJSFSchema): string | undefined {
+	const type = asSchemaObject(prop).type;
+	if (Array.isArray(type)) return type.find((value) => value !== "null");
+	return type;
+}
+
+function cloneJsonValue(value: unknown): unknown {
+	if (value === undefined) return undefined;
+	return structuredClone(value);
+}
+
+function asSchemaObject(schema: RJSFSchema): SchemaObject {
+	return schema as SchemaObject;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
 }
 
 // ───────────────────────────────────────────────────────────────────────────
