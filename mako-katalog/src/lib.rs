@@ -55,5 +55,17 @@ mod tests {
 		assert!(json.starts_with("["));
 		assert!(json.contains("\"key\""));
 		assert!(json.contains("\"schritte\""));
+		assert!(json.contains("\"erklaerung\""));
+	}
+
+	#[test]
+	fn jeder_schritt_hat_eine_erklaerung() {
+		let prozesse = alle_prozesse();
+		let fehlende: Vec<_> = prozesse
+			.iter()
+			.flat_map(|p| p.schritte.iter().map(move |s| (&p.key, &s.name, &s.erklaerung)))
+			.filter(|(_, _, erklaerung)| erklaerung.trim().is_empty())
+			.collect();
+		assert!(fehlende.is_empty(), "Schritte ohne Erklärung: {fehlende:?}");
 	}
 }

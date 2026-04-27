@@ -16,6 +16,8 @@ export interface NachrichtMeta {
 export interface NachrichtenStatus {
 	erstellt?: string;
 	zugestellt?: string;
+	ack_zugestellt?: string;
+	ack?: { ergebnis: "positiv" | "negativ"; zeitpunkt: string };
 	contrl?: { ergebnis: "positiv" | "negativ"; zeitpunkt: string };
 	aperak?: { ergebnis: "positiv" | "negativ"; zeitpunkt: string };
 	verarbeitet?: string;
@@ -85,6 +87,7 @@ export const NACHRICHTEN_TYP_LABEL: Record<NachrichtenTyp, string> = {
 
 export interface SchrittDef {
 	name: string;
+	erklaerung: string;
 	absender: string;
 	empfaenger: string;
 	typ: string;

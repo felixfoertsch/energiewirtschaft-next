@@ -86,6 +86,12 @@ enum Commands {
 		/// Path to the markt directory
 		#[arg(long)]
 		markt: String,
+		/// Payload type name, overriding stdin.typ when set
+		#[arg(long)]
+		typ: Option<String>,
+		/// Copy to receiver inbox and create an acknowledgement immediately
+		#[arg(long, default_value_t = true)]
+		auto_zustellen: bool,
 	},
 }
 
@@ -136,8 +142,18 @@ fn main() {
 				std::process::exit(1);
 			}
 		}
-		Commands::ErstelleNachricht { rolle, markt } => {
-			if let Err(e) = erstelle_nachricht::run(&rolle, &markt) {
+		Commands::ErstelleNachricht {
+			rolle,
+			markt,
+			typ,
+			auto_zustellen,
+		} => {
+			if let Err(e) = erstelle_nachricht::run_with_options(
+				&rolle,
+				&markt,
+				auto_zustellen,
+				typ.as_deref(),
+			) {
 				eprintln!("Fehler: {e}");
 				std::process::exit(1);
 			}

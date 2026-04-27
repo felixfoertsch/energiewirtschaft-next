@@ -99,6 +99,7 @@ impl NachrichtenTyp {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SchrittDef {
 	pub name: String,
+	pub erklaerung: String,
 	pub absender: String,
 	pub empfaenger: String,
 	/// Symbolic payload variant (e.g. `"UtilmdAnmeldung"`). For `Intern`
@@ -116,13 +117,98 @@ impl SchrittDef {
 		typ: &str,
 		nachrichten_typ: NachrichtenTyp,
 	) -> Self {
+		Self::with_erklaerung(
+			name,
+			absender,
+			empfaenger,
+			typ,
+			nachrichten_typ,
+			&standard_erklaerung(name, absender, empfaenger, typ, nachrichten_typ),
+		)
+	}
+
+	/// Constructor for hand-authored domain explanations.
+	pub fn with_erklaerung(
+		name: &str,
+		absender: MarktRolle,
+		empfaenger: MarktRolle,
+		typ: &str,
+		nachrichten_typ: NachrichtenTyp,
+		erklaerung: &str,
+	) -> Self {
 		Self {
 			name: name.to_string(),
+			erklaerung: erklaerung.to_string(),
 			absender: absender.slug().to_string(),
 			empfaenger: empfaenger.slug().to_string(),
 			typ: typ.to_string(),
 			nachrichten_typ,
 		}
+	}
+}
+
+fn standard_erklaerung(
+	name: &str,
+	absender: MarktRolle,
+	empfaenger: MarktRolle,
+	typ: &str,
+	nachrichten_typ: NachrichtenTyp,
+) -> String {
+	let absender = absender.kuerzel();
+	let empfaenger = empfaenger.kuerzel();
+	let payload = if typ.is_empty() {
+		"den internen Prozessstatus".to_string()
+	} else {
+		format!("die fachlichen Daten aus {typ}")
+	};
+	let kanal = nachrichten_typ.label();
+	let kanal = if kanal.is_empty() {
+		"prozessintern"
+	} else {
+		kanal
+	};
+	if absender == "DP" || empfaenger == "DP" {
+		return format!(
+			"Der DP tritt als Mittelsmann zwischen EIV und ANB auf und konsolidiert die Datenflüsse im RD-2.0-Datenraum. In diesem Schritt übergibt {absender} {payload} an {empfaenger}, damit alle Beteiligten mit derselben fachlichen Sicht arbeiten."
+		);
+	}
+	match nachrichten_typ {
+		NachrichtenTyp::Intern => format!(
+			"{absender} klärt mit {empfaenger} den fachlichen Status für „{name}“. Der interne Schritt steuert, ob der Prozess fortgeführt, bestätigt oder abgelehnt wird."
+		),
+		NachrichtenTyp::Invoic => format!(
+			"{absender} stellt {empfaenger} die abrechnungsrelevante Forderung. Die Rechnung macht den fachlichen Anspruch zahlbar und ordnet ihn dem Marktprozess zu."
+		),
+		NachrichtenTyp::Remadv => format!(
+			"{absender} avisiert {empfaenger} die Zahlung zu einer offenen Forderung. {empfaenger} kann den Zahlungseingang dadurch eindeutig zuordnen."
+		),
+		NachrichtenTyp::Mscons => format!(
+			"{absender} übermittelt {empfaenger} die benötigten Mess- oder Bilanzierungswerte. Diese Werte bilden die Grundlage für Plausibilisierung, Bilanzierung oder Abrechnung."
+		),
+		NachrichtenTyp::Reqote => format!(
+			"{absender} fordert bei {empfaenger} ein Angebot für eine energiewirtschaftliche Leistung an. Die Anfrage legt den Leistungsbedarf vor einer Bestellung fest."
+		),
+		NachrichtenTyp::Quotes => format!(
+			"{absender} übermittelt {empfaenger} Konditionen und Leistungsdetails. {empfaenger} kann auf dieser Grundlage die Bestellung fachlich entscheiden."
+		),
+		NachrichtenTyp::Orders => format!(
+			"{absender} bestellt bei {empfaenger} eine definierte Marktleistung. Die Bestellung schafft die Grundlage für Ausführung, Nachweis und Abrechnung."
+		),
+		NachrichtenTyp::Ordrsp => format!(
+			"{absender} bestätigt oder lehnt die Bestellung gegenüber {empfaenger} ab. {empfaenger} erkennt dadurch, ob die Leistung erbracht wird."
+		),
+		NachrichtenTyp::Pricat => format!(
+			"{absender} stellt {empfaenger} die gültigen Preise für standardisierte Leistungen bereit. Das Preisblatt schafft die Grundlage für Angebot, Bestellung und Abrechnung."
+		),
+		NachrichtenTyp::RdXml => format!(
+			"{absender} übermittelt {empfaenger} {payload} für Redispatch 2.0. Der Schritt stellt sicher, dass Netzbedarf, Einsatzplanung oder Ressourcendaten im RD-2.0-Prozess fachlich verfügbar sind."
+		),
+		NachrichtenTyp::Cls => format!(
+			"{absender} sendet {empfaenger} ein Steuerungssignal für eine steuerbare Verbrauchseinrichtung. Der Schritt löst die technische Umsetzung der netzdienlichen Steuerung aus."
+		),
+		NachrichtenTyp::Utilmd => format!(
+			"{absender} übermittelt {empfaenger} {payload} per {kanal}. Der Schritt hält Stammdaten, Zuordnungen oder Geschäftsdaten zwischen den Marktpartnern synchron."
+		),
 	}
 }
 
@@ -188,5 +274,19 @@ mod tests {
 		assert_eq!(json, "\"rd2\"");
 		let json = serde_json::to_string(&ProzessKategorie::GeliGas).unwrap();
 		assert_eq!(json, "\"geli_gas\"");
+	}
+
+	#[test]
+	fn schritt_serialisiert_erklaerung() {
+		let schritt = SchrittDef::with_erklaerung(
+			"x",
+			MarktRolle::LieferantNeu,
+			MarktRolle::Netzbetreiber,
+			"UtilmdAnmeldung",
+			NachrichtenTyp::Utilmd,
+			"Fachlicher Zweck.",
+		);
+		let json = serde_json::to_value(schritt).unwrap();
+		assert_eq!(json["erklaerung"], "Fachlicher Zweck.");
 	}
 }

@@ -1,5 +1,6 @@
 pub mod abruf;
 pub mod btr_eiv_stammdaten;
+pub mod eiv_dp_stammdaten;
 pub mod engpass;
 pub mod fahrplan;
 pub mod katalog;

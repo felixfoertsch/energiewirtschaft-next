@@ -7,6 +7,7 @@ import { MessageList } from "@/components/MessageList.tsx";
 import { ProcessTimeline } from "@/components/ProcessTimeline.tsx";
 import { ProzessListe } from "@/components/ProzessListe.tsx";
 import { RollenSidebar } from "@/components/RollenSidebar.tsx";
+import { SchrittErklaerung } from "@/components/SchrittErklaerung.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { WeltStartseite } from "@/components/WeltStartseite.tsx";
 import { api, subscribeEvents } from "@/lib/api.ts";
@@ -255,14 +256,24 @@ export function App() {
 								</div>
 
 								{/* Center: Inbox/Outbox */}
-								<div className="overflow-hidden border-r">
-									<MessageList
-										inbox={inbox}
-										outbox={outbox}
-										selectedDatei={selection?.datei ?? null}
-										onSelect={handleSelect}
-										onRolleSwitch={handleRolleChange}
-									/>
+								<div className="flex min-h-0 flex-col overflow-hidden border-r">
+									{aktiverProzess && (
+										<div className="shrink-0 border-b p-3">
+											<SchrittErklaerung
+												prozess={prozesse.find((p) => p.key === aktiverProzess)}
+												rolle={aktiveRolle}
+											/>
+										</div>
+									)}
+									<div className="min-h-0 flex-1">
+										<MessageList
+											inbox={inbox}
+											outbox={outbox}
+											selectedDatei={selection?.datei ?? null}
+											onSelect={handleSelect}
+											onRolleSwitch={handleRolleChange}
+										/>
+									</div>
 								</div>
 
 								{/* Right: Detail or Form */}

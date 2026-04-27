@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::gpke_nachrichten::*;
 use crate::ids::MarktpartnerId;
 use crate::pruefidentifikator::PruefIdentifikator;
+use crate::rd2_quittung::AcknowledgementDocument;
 use crate::rolle::MarktRolle;
 
 /// Envelope for any MaKo message, carrying routing info and typed payload.
@@ -65,6 +66,7 @@ pub enum NachrichtenPayload {
 	RdKostenblatt(RdKostenblatt),
 	RdStatusRequest(RdStatusRequest),
 	RdKaskade(RdKaskade),
+	AcknowledgementDocument(AcknowledgementDocument),
 	// §14a EnWG
 	UtilmdSteuerbareVerbrauchseinrichtung(UtilmdSteuerbareVerbrauchseinrichtung),
 	ClsSteuersignal(ClsSteuersignal),
@@ -156,6 +158,7 @@ payload_registry! {
 	"RdKostenblatt" => RdKostenblatt(RdKostenblatt),
 	"RdStatusRequest" => RdStatusRequest(RdStatusRequest),
 	"RdKaskade" => RdKaskade(RdKaskade),
+	"AcknowledgementDocument" => AcknowledgementDocument(AcknowledgementDocument),
 	"UtilmdSteuerbareVerbrauchseinrichtung" => UtilmdSteuerbareVerbrauchseinrichtung(UtilmdSteuerbareVerbrauchseinrichtung),
 	"ClsSteuersignal" => ClsSteuersignal(ClsSteuersignal),
 	"Nominierung" => Nominierung(Nominierung),

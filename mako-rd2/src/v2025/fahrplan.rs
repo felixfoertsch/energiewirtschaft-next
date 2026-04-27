@@ -7,7 +7,6 @@ use mako_types::rolle::MarktRolle;
 use mako_types::rolle::MarktRolle::*;
 
 pub const FAHRPLAN_ROLLENTUPEL: &[(MarktRolle, MarktRolle)] = &[
-	(Einsatzverantwortlicher, Uebertragungsnetzbetreiber),
 	(Einsatzverantwortlicher, DataProvider),
 	(DataProvider, Anschlussnetzbetreiber),
 	(Anschlussnetzbetreiber, Einsatzverantwortlicher),
@@ -26,7 +25,7 @@ pub enum FahrplanState {
 		ressource_id: String,
 		absender: MarktpartnerId,
 	},
-	/// RD 7.2.2: Forwarded by ÜNB
+	/// RD 7.2.2: Forwarded by DP
 	Weitergeleitet {
 		ressource_id: String,
 	},
@@ -54,9 +53,11 @@ pub fn reduce(
 ) -> Result<ReducerOutput<FahrplanState>, ProzessFehler> {
 	match (state, event) {
 		(FahrplanState::Idle, FahrplanEvent::FahrplanGesendet(fp)) => {
-			// MP-IDs entsprechen mako-cli/src/init.rs::ROLLEN — Index 18 = EIV, 13 = ÜNB.
+			// MP-IDs entsprechen mako-cli/src/init.rs::ROLLEN — Index 18 = EIV, 20 = DP.
+			// PlannedResourceScheduleDocument FB 1.0f: Empfänger ist A39 Data Provider,
+			// nicht der ÜNB. Der DP routet anschließend an den ANB weiter.
 			let absender = MarktpartnerId::new("9900000000018").expect("valid id");
-			let empfaenger = MarktpartnerId::new("9900000000013").expect("valid id");
+			let empfaenger = MarktpartnerId::new("9900000000020").expect("valid id");
 			let (absender_rolle, empfaenger_rolle) = FAHRPLAN_ROLLENTUPEL[0];
 			let nachricht = Nachricht {
 				absender: absender.clone(),

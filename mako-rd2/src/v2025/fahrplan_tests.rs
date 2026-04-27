@@ -25,10 +25,7 @@ fn happy_path_idle_to_bestaetigt() {
 	assert!(matches!(out.state, FahrplanState::FahrplanGesendet { .. }));
 	assert_eq!(out.nachrichten.len(), 1);
 	assert_eq!(out.nachrichten[0].absender_rolle, Einsatzverantwortlicher);
-	assert_eq!(
-		out.nachrichten[0].empfaenger_rolle,
-		Uebertragungsnetzbetreiber
-	);
+	assert_eq!(out.nachrichten[0].empfaenger_rolle, DataProvider);
 
 	let out = reduce(out.state, FahrplanEvent::Weitergeleitet).expect("step 2");
 	assert!(matches!(out.state, FahrplanState::Weitergeleitet { .. }));
@@ -80,37 +77,34 @@ fn bestaetigt_is_terminal() {
 
 #[test]
 fn rollentupel_decken_planungsdaten_kanon_ab() {
+	// PlannedResourceScheduleDocument FB 1.0f: Empfänger ist A39 Data Provider.
 	assert_eq!(
 		FAHRPLAN_ROLLENTUPEL[0],
-		(Einsatzverantwortlicher, Uebertragungsnetzbetreiber)
-	);
-	assert_eq!(
-		FAHRPLAN_ROLLENTUPEL[1],
 		(Einsatzverantwortlicher, DataProvider)
 	);
 	assert_eq!(
-		FAHRPLAN_ROLLENTUPEL[2],
+		FAHRPLAN_ROLLENTUPEL[1],
 		(DataProvider, Anschlussnetzbetreiber)
 	);
 	assert_eq!(
-		FAHRPLAN_ROLLENTUPEL[3],
+		FAHRPLAN_ROLLENTUPEL[2],
 		(Anschlussnetzbetreiber, Einsatzverantwortlicher)
 	);
 	assert_eq!(
-		FAHRPLAN_ROLLENTUPEL[4],
+		FAHRPLAN_ROLLENTUPEL[3],
 		(Anschlussnetzbetreiber, DataProvider)
 	);
 	assert_eq!(
-		FAHRPLAN_ROLLENTUPEL[5],
+		FAHRPLAN_ROLLENTUPEL[4],
 		(Netzbetreiber, Anschlussnetzbetreiber)
 	);
 	assert_eq!(
-		FAHRPLAN_ROLLENTUPEL[6],
+		FAHRPLAN_ROLLENTUPEL[5],
 		(AnfordernderNetzbetreiber, DataProvider)
 	);
-	assert_eq!(FAHRPLAN_ROLLENTUPEL[7], (DataProvider, Netzbetreiber));
+	assert_eq!(FAHRPLAN_ROLLENTUPEL[6], (DataProvider, Netzbetreiber));
 	assert_eq!(
-		FAHRPLAN_ROLLENTUPEL[8],
+		FAHRPLAN_ROLLENTUPEL[7],
 		(AnfordernderNetzbetreiber, Anschlussnetzbetreiber)
 	);
 }

@@ -2,6 +2,7 @@ use chrono::{Datelike, NaiveDateTime, Timelike};
 
 use mako_types::gpke_nachrichten::*;
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
+use mako_types::rd2_quittung::AcknowledgementTyp;
 
 use crate::fehler::CodecFehler;
 
@@ -56,6 +57,26 @@ pub fn serialize_xml(nachricht: &Nachricht) -> Result<String, CodecFehler> {
 					"  <received_MarketDocument.mRID>{}</received_MarketDocument.mRID>\n\
 					 \x20 <Reason.code>{reason_code}</Reason.code>{reason_text}",
 					p.referenz_dokument_id,
+				),
+			)
+		}
+		NachrichtenPayload::AcknowledgementDocument(p) => {
+			let status = match p.ack_typ {
+				AcknowledgementTyp::Positiv => "positiv",
+				AcknowledgementTyp::Negativ => "negativ",
+			};
+			let reason_text = match &p.reason {
+				Some(reason) => format!("\n  <Reason.text>{reason}</Reason.text>"),
+				None => String::new(),
+			};
+			(
+				"Acknowledgement_MarketDocument",
+				format!(
+					"  <received_MarketDocument.mRID>{}</received_MarketDocument.mRID>\n\
+					 \x20 <createdDateTime>{}</createdDateTime>\n\
+					 \x20 <acknowledgementStatus>{status}</acknowledgementStatus>{reason_text}",
+					p.original_message_mrid,
+					p.received_at.to_rfc3339(),
 				),
 			)
 		}

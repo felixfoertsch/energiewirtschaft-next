@@ -14,26 +14,52 @@ pub fn katalog() -> Vec<ProzessDef> {
 			"Redispatch-Abruf",
 			ProzessKategorie::Rd2,
 			vec![
-				SchrittDef::new(
+				SchrittDef::with_erklaerung(
 					"Aktivierung senden",
 					MarktRolle::AnfordernderNetzbetreiber,
 					MarktRolle::Anschlussnetzbetreiber,
 					"RdAktivierung",
 					NachrichtenTyp::RdXml,
+					"Der anfordernde Netzbetreiber meldet dem Anschlussnetzbetreiber einen konkreten Redispatch-Bedarf. Der Anschlussnetzbetreiber braucht diese Aktivierung, um die betroffenen technischen Ressourcen in seinem Netzgebiet operativ anzusteuern.",
 				),
-				SchrittDef::new(
+				SchrittDef::with_erklaerung(
 					"Weiterleitung",
 					MarktRolle::Anschlussnetzbetreiber,
 					MarktRolle::Einsatzverantwortlicher,
 					"",
 					NachrichtenTyp::Intern,
+					"Der Anschlussnetzbetreiber leitet die Aktivierung an den Einsatzverantwortlichen weiter und übersetzt den Netzbedarf in eine anlagenbezogene Anforderung. Der Einsatzverantwortliche koordiniert daraus den konkreten Einsatz der Ressource.",
 				),
-				SchrittDef::new(
+				SchrittDef::with_erklaerung(
 					"Quittierung",
 					MarktRolle::Einsatzverantwortlicher,
 					MarktRolle::BetreiberTechnischeRessource,
 					"",
 					NachrichtenTyp::Intern,
+					"Der Einsatzverantwortliche informiert den Betreiber der technischen Ressource über die angenommene Aktivierung. Damit weiß der Betreiber, welche operative Maßnahme für seine Anlage ausgelöst wurde.",
+				),
+			],
+		),
+		ProzessDef::new(
+			"rd2_eiv_dp_stammdaten",
+			"Stammdaten EIV→DP→ANB",
+			ProzessKategorie::Rd2,
+			vec![
+				SchrittDef::with_erklaerung(
+					"Stammdaten an DP senden",
+					MarktRolle::Einsatzverantwortlicher,
+					MarktRolle::DataProvider,
+					"RdStammdaten",
+					NachrichtenTyp::RdXml,
+					"Der Einsatzverantwortliche bündelt die von seinen BTRs gemeldeten Anlagenstammdaten und schickt sie dem Data Provider. Der DP ist im RD-2.0-Datenraum die zentrale Sammelstelle: er konsolidiert die Stammdaten aller EIVs und stellt sie den berechtigten Netzbetreibern in einer abgestimmten Sicht bereit.",
+				),
+				SchrittDef::with_erklaerung(
+					"DP an ANB weiterleiten",
+					MarktRolle::DataProvider,
+					MarktRolle::Anschlussnetzbetreiber,
+					"RdStammdaten",
+					NachrichtenTyp::RdXml,
+					"Der DP leitet die konsolidierten Anlagenstammdaten an den Anschlussnetzbetreiber weiter. Erst damit kennt der ANB die im Netzgebiet verfügbaren Ressourcen vollständig und kann sie in Engpassbearbeitung und Abrufkaskade einbeziehen.",
 				),
 			],
 		),
@@ -42,19 +68,21 @@ pub fn katalog() -> Vec<ProzessDef> {
 			"Stammdaten BTR→EIV",
 			ProzessKategorie::Rd2,
 			vec![
-				SchrittDef::new(
+				SchrittDef::with_erklaerung(
 					"Stammdaten senden",
 					MarktRolle::BetreiberTechnischeRessource,
 					MarktRolle::Einsatzverantwortlicher,
 					"RdStammdaten",
 					NachrichtenTyp::RdXml,
+					"Der BTR hat eine kleine regelbare Anlage und meldet seinem EIV die installierte Leistung, den Anlagentyp und den Standort. Der EIV ist die zentrale Verbindung der Anlage in die Marktkommunikation und braucht diese Stammdaten, um den operativen Einsatz zu organisieren.",
 				),
-				SchrittDef::new(
+				SchrittDef::with_erklaerung(
 					"Bestätigen",
 					MarktRolle::Einsatzverantwortlicher,
 					MarktRolle::BetreiberTechnischeRessource,
 					"",
 					NachrichtenTyp::Intern,
+					"Der EIV bestätigt dem BTR den Empfang der Stammdaten und übernimmt damit die Verantwortung, die Anlage in die Marktkommunikation einzubinden. Erst nach dieser Bestätigung gilt die Anlage als angebunden.",
 				),
 			],
 		),
@@ -63,19 +91,21 @@ pub fn katalog() -> Vec<ProzessDef> {
 			"Engpass-Meldung",
 			ProzessKategorie::Rd2,
 			vec![
-				SchrittDef::new(
+				SchrittDef::with_erklaerung(
 					"Engpass melden",
 					MarktRolle::Netzbetreiber,
 					MarktRolle::Anschlussnetzbetreiber,
 					"RdEngpass",
 					NachrichtenTyp::RdXml,
+					"Der Netzbetreiber meldet einen Engpass an den Anschlussnetzbetreiber, dessen Netzgebiet oder Anlagen betroffen sind. Der Anschlussnetzbetreiber braucht diese Information, um die relevanten Ressourcen, Stammdaten und Einsatzverantwortlichen zuzuordnen.",
 				),
-				SchrittDef::new(
+				SchrittDef::with_erklaerung(
 					"Bestätigen",
 					MarktRolle::Anschlussnetzbetreiber,
 					MarktRolle::Netzbetreiber,
 					"",
 					NachrichtenTyp::Intern,
+					"Der Anschlussnetzbetreiber bestätigt, dass er den Engpass fachlich verarbeitet und in seine Redispatch-Koordination übernommen hat. Der meldende Netzbetreiber erhält damit Rückmeldung, dass der Engpass nicht unbearbeitet bleibt.",
 				),
 			],
 		),
@@ -84,26 +114,29 @@ pub fn katalog() -> Vec<ProzessDef> {
 			"Fahrplan-Meldung",
 			ProzessKategorie::Rd2,
 			vec![
-				SchrittDef::new(
+				SchrittDef::with_erklaerung(
 					"Fahrplan senden",
 					MarktRolle::Einsatzverantwortlicher,
-					MarktRolle::Uebertragungsnetzbetreiber,
+					MarktRolle::DataProvider,
 					"RdFahrplan",
 					NachrichtenTyp::RdXml,
+					"Der Einsatzverantwortliche übermittelt den geplanten Einsatz seiner steuerbaren Ressource an den Data Provider. Der DP ist im RD-2.0-Datenraum der zentrale Empfänger für Planungsdaten und konsolidiert sie für alle berechtigten Netzbetreiber.",
 				),
-				SchrittDef::new(
+				SchrittDef::with_erklaerung(
 					"Weiterleitung",
 					MarktRolle::DataProvider,
 					MarktRolle::Anschlussnetzbetreiber,
 					"",
 					NachrichtenTyp::Intern,
+					"Der DP tritt als Mittelsmann zwischen EIV und ANB auf und konsolidiert die Fahrplandaten aus dem RD-2.0-Datenraum. Der Anschlussnetzbetreiber erhält dadurch eine abgestimmte Sicht auf die für sein Netz relevanten Fahrpläne.",
 				),
-				SchrittDef::new(
+				SchrittDef::with_erklaerung(
 					"Bestätigen",
 					MarktRolle::Anschlussnetzbetreiber,
 					MarktRolle::Einsatzverantwortlicher,
 					"",
 					NachrichtenTyp::Intern,
+					"Der Anschlussnetzbetreiber bestätigt dem Einsatzverantwortlichen, dass die Fahrplandaten für die Netzführung verwertbar vorliegen. Damit kann der Einsatzverantwortliche den gemeldeten Plan als Grundlage weiterer Redispatch-Kommunikation verwenden.",
 				),
 			],
 		),
@@ -112,19 +145,21 @@ pub fn katalog() -> Vec<ProzessDef> {
 			"Nichtverfügbarkeitsmeldung",
 			ProzessKategorie::Rd2,
 			vec![
-				SchrittDef::new(
+				SchrittDef::with_erklaerung(
 					"Nichtverfügbarkeit melden",
 					MarktRolle::Einsatzverantwortlicher,
 					MarktRolle::DataProvider,
 					"RdNichtverfuegbarkeit",
 					NachrichtenTyp::RdXml,
+					"Der Einsatzverantwortliche meldet dem DP, dass eine Ressource zeitweise nicht oder nur eingeschränkt verfügbar ist. Der DP konsolidiert als Mittelsmann zwischen EIV und ANB diese Verfügbarkeitsinformation mit den übrigen Datenflüssen im RD-2.0-Datenraum.",
 				),
-				SchrittDef::new(
+				SchrittDef::with_erklaerung(
 					"Weiterleitung",
 					MarktRolle::DataProvider,
 					MarktRolle::Anschlussnetzbetreiber,
 					"",
 					NachrichtenTyp::Intern,
+					"Der DP leitet die konsolidierte Nichtverfügbarkeit an den Anschlussnetzbetreiber weiter. Der Anschlussnetzbetreiber braucht diese Information, damit er keine nicht verfügbare Ressource für Engpassmaßnahmen einplant.",
 				),
 			],
 		),
@@ -133,26 +168,29 @@ pub fn katalog() -> Vec<ProzessDef> {
 			"Stammdaten-Austausch RD 2.0",
 			ProzessKategorie::Rd2,
 			vec![
-				SchrittDef::new(
+				SchrittDef::with_erklaerung(
 					"Stammdaten senden",
 					MarktRolle::Anschlussnetzbetreiber,
 					MarktRolle::DataProvider,
 					"RdStammdaten",
 					NachrichtenTyp::RdXml,
+					"Der Anschlussnetzbetreiber leitet die Anlagenstammdaten an den Data Provider weiter. Der DP ist der zentrale Mittelsmann im RD-2.0-Datenraum: er konsolidiert die Stammdaten aller Anlagen seines Bilanzierungsgebiets und stellt sie für Abrufe und Engpassmeldungen bereit.",
 				),
-				SchrittDef::new(
+				SchrittDef::with_erklaerung(
 					"Weiterleitung",
 					MarktRolle::DataProvider,
 					MarktRolle::Anschlussnetzbetreiber,
 					"",
 					NachrichtenTyp::Intern,
+					"Der DP gleicht die eingegangenen Stammdaten mit den bereits konsolidierten Datenflüssen zwischen EIV und ANB ab und stellt dem Anschlussnetzbetreiber die abgestimmte Sicht bereit. So arbeitet der Anschlussnetzbetreiber mit denselben Stammdaten wie der übrige RD-2.0-Datenraum.",
 				),
-				SchrittDef::new(
+				SchrittDef::with_erklaerung(
 					"Bestätigen",
 					MarktRolle::Anschlussnetzbetreiber,
 					MarktRolle::DataProvider,
 					"",
 					NachrichtenTyp::Intern,
+					"Der Anschlussnetzbetreiber bestätigt dem DP, dass die konsolidierten Stammdaten fachlich akzeptiert sind. Der DP kann die Daten danach als verbindliche Grundlage für weitere Abrufe, Fahrpläne und Engpassmeldungen verwenden.",
 				),
 			],
 		),
@@ -200,6 +238,7 @@ mod tests {
 			keys,
 			vec![
 				"rd2_abruf",
+				"rd2_eiv_dp_stammdaten",
 				"rd2_btr_eiv_stammdaten",
 				"rd2_engpass",
 				"rd2_fahrplan",

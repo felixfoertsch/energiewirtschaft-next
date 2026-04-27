@@ -62,6 +62,18 @@ function readJsonSafe(path: string): unknown {
 	return JSON.parse(readFileSync(path, "utf-8"));
 }
 
+function nachrichtenStatus(raw: unknown): Record<string, unknown> {
+	if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return {};
+	const status = { ...(raw as Record<string, unknown>) };
+	if (typeof status.ack_zugestellt === "string" && status.ack === undefined) {
+		status.ack = {
+			ergebnis: "positiv",
+			zeitpunkt: status.ack_zugestellt,
+		};
+	}
+	return status;
+}
+
 function listFiles(dir: string): string[] {
 	if (!existsSync(dir)) return [];
 	return readdirSync(dir)
@@ -112,10 +124,10 @@ function nachrichtMeta(rolle: string, box: string, datei: string) {
 	const filePath = safeMarktPath(rolle, box, datei);
 	const statusPath = `${filePath}.status.json`;
 	const stat = statSync(filePath);
-	const status = readJsonSafe(statusPath);
+	const status = nachrichtenStatus(readJsonSafe(statusPath));
 	return {
 		datei,
-		typ: datei.replace(/^\d+_/, "").replace(/\.(edi|json)$/, ""),
+		typ: datei.replace(/^\d+_/, "").replace(/\.(edi|json|xml)$/, ""),
 		absender: "",
 		empfaenger: rolle,
 		zeitpunkt: stat.mtime.toISOString(),
@@ -243,7 +255,9 @@ app.get(`${API}/rollen/:rolle/inbox`, (req: Request, res: Response) => {
 	try {
 		const rolle = param(req, "rolle");
 		const dir = safeMarktPath(rolle, "inbox");
-		const files = listFiles(dir).filter((f) => f.endsWith(".edi") || f.endsWith(".json"));
+		const files = listFiles(dir).filter(
+			(f) => f.endsWith(".edi") || f.endsWith(".json") || f.endsWith(".xml"),
+		);
 		const metas = files
 			.filter((f) => !f.endsWith(".status.json"))
 			.map((f) => nachrichtMeta(rolle, "inbox", f));
@@ -257,7 +271,9 @@ app.get(`${API}/rollen/:rolle/outbox`, (req: Request, res: Response) => {
 	try {
 		const rolle = param(req, "rolle");
 		const dir = safeMarktPath(rolle, "outbox");
-		const files = listFiles(dir).filter((f) => f.endsWith(".edi") || f.endsWith(".json"));
+		const files = listFiles(dir).filter(
+			(f) => f.endsWith(".edi") || f.endsWith(".json") || f.endsWith(".xml"),
+		);
 		const metas = files
 			.filter((f) => !f.endsWith(".status.json"))
 			.map((f) => nachrichtMeta(rolle, "outbox", f));

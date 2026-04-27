@@ -1,10 +1,11 @@
-use chrono::NaiveDateTime;
-use quick_xml::events::Event;
+use chrono::{DateTime, FixedOffset, NaiveDateTime};
 use quick_xml::Reader;
+use quick_xml::events::Event;
 
 use mako_types::gpke_nachrichten::*;
 use mako_types::ids::MarktpartnerId;
 use mako_types::nachricht::{Nachricht, NachrichtenPayload};
+use mako_types::rd2_quittung::{AcknowledgementDocument, AcknowledgementTyp};
 use mako_types::rolle::MarktRolle;
 
 use crate::fehler::CodecFehler;
@@ -20,12 +21,14 @@ pub fn parse_xml(input: &str) -> Result<Nachricht, CodecFehler> {
 	// Extract all text elements into a flat key-value map
 	let fields = extract_fields(&mut reader)?;
 
-	let sender_str = fields
-		.get("sender_MarketParticipant.mRID")
-		.ok_or_else(|| CodecFehler::XmlParseFehler("missing sender_MarketParticipant.mRID".into()))?;
+	let sender_str = fields.get("sender_MarketParticipant.mRID").ok_or_else(|| {
+		CodecFehler::XmlParseFehler("missing sender_MarketParticipant.mRID".into())
+	})?;
 	let receiver_str = fields
 		.get("receiver_MarketParticipant.mRID")
-		.ok_or_else(|| CodecFehler::XmlParseFehler("missing receiver_MarketParticipant.mRID".into()))?;
+		.ok_or_else(|| {
+			CodecFehler::XmlParseFehler("missing receiver_MarketParticipant.mRID".into())
+		})?;
 
 	let absender = MarktpartnerId::new(sender_str)
 		.map_err(|e| CodecFehler::XmlParseFehler(format!("invalid sender MP-ID: {e}")))?;
@@ -66,16 +69,41 @@ pub fn parse_xml(input: &str) -> Result<Nachricht, CodecFehler> {
 			)
 		}
 		"Acknowledgement_MarketDocument" => {
-			let p = RdBestaetigung {
-				referenz_dokument_id: require_field(&fields, "received_MarketDocument.mRID")?,
-				akzeptiert: require_field(&fields, "Reason.code")? == "A01",
-				grund: fields.get("Reason.text").cloned(),
-			};
-			(
-				MarktRolle::Netzbetreiber,
-				MarktRolle::Uebertragungsnetzbetreiber,
-				NachrichtenPayload::RdBestaetigung(p),
-			)
+			if fields.get("acknowledgementStatus").is_some() {
+				let ack_typ = match require_field(&fields, "acknowledgementStatus")?.as_str() {
+					"positiv" => AcknowledgementTyp::Positiv,
+					"negativ" => AcknowledgementTyp::Negativ,
+					other => {
+						return Err(CodecFehler::XmlParseFehler(format!(
+							"unknown acknowledgementStatus: {other}"
+						)));
+					}
+				};
+				let p = AcknowledgementDocument {
+					receiver_mrid: empfaenger.clone(),
+					sender_mrid: absender.clone(),
+					original_message_mrid: require_field(&fields, "received_MarketDocument.mRID")?,
+					received_at: parse_rfc3339(&fields, "createdDateTime")?,
+					ack_typ,
+					reason: fields.get("Reason.text").cloned(),
+				};
+				(
+					MarktRolle::Netzbetreiber,
+					MarktRolle::LieferantNeu,
+					NachrichtenPayload::AcknowledgementDocument(p),
+				)
+			} else {
+				let p = RdBestaetigung {
+					referenz_dokument_id: require_field(&fields, "received_MarketDocument.mRID")?,
+					akzeptiert: require_field(&fields, "Reason.code")? == "A01",
+					grund: fields.get("Reason.text").cloned(),
+				};
+				(
+					MarktRolle::Netzbetreiber,
+					MarktRolle::Uebertragungsnetzbetreiber,
+					NachrichtenPayload::RdBestaetigung(p),
+				)
+			}
 		}
 		"Stammdaten_MarketDocument" => {
 			let typ_str = require_field(&fields, "resourceType")?;
@@ -100,8 +128,7 @@ pub fn parse_xml(input: &str) -> Result<Nachricht, CodecFehler> {
 		"Kostenblatt_MarketDocument" => {
 			let p = RdKostenblatt {
 				ressource_id: require_field(&fields, "registeredResource.mRID")?,
-				kosten_ct: parse_f64(&fields, "cost.amount")
-					.map(|v| v as i64)?,
+				kosten_ct: parse_f64(&fields, "cost.amount").map(|v| v as i64)?,
 				massnahme_start: parse_dt(&fields, "start")?,
 				massnahme_ende: parse_dt(&fields, "end")?,
 			};
@@ -151,8 +178,7 @@ pub fn parse_xml(input: &str) -> Result<Nachricht, CodecFehler> {
 		"Kaskade_MarketDocument" => {
 			let p = RdKaskade {
 				ressource_id: require_field(&fields, "registeredResource.mRID")?,
-				kaskaden_stufe: parse_f64(&fields, "cascadeLevel")
-					.map(|v| v as u8)?,
+				kaskaden_stufe: parse_f64(&fields, "cascadeLevel").map(|v| v as u8)?,
 				sollwert_kw: parse_f64(&fields, "quantity.quantity")?,
 				start: parse_dt(&fields, "start")?,
 				ende: parse_dt(&fields, "end")?,
@@ -265,5 +291,14 @@ fn parse_dt(
 ) -> Result<NaiveDateTime, CodecFehler> {
 	let s = require_field(fields, key)?;
 	NaiveDateTime::parse_from_str(&s, "%Y-%m-%dT%H:%M:%S")
+		.map_err(|e| CodecFehler::XmlParseFehler(format!("invalid datetime for {key}: {e}")))
+}
+
+fn parse_rfc3339(
+	fields: &std::collections::HashMap<String, String>,
+	key: &str,
+) -> Result<DateTime<FixedOffset>, CodecFehler> {
+	let s = require_field(fields, key)?;
+	DateTime::parse_from_rfc3339(&s)
 		.map_err(|e| CodecFehler::XmlParseFehler(format!("invalid datetime for {key}: {e}")))
 }
