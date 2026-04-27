@@ -1,4 +1,5 @@
 import Form, { type IChangeEvent } from "@rjsf/core";
+import type { RegistryWidgetsType, RJSFSchema, UiSchema, WidgetProps } from "@rjsf/utils";
 import validator from "@rjsf/validator-ajv8";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge.tsx";
@@ -8,9 +9,16 @@ import { Separator } from "@/components/ui/separator.tsx";
 import { api, type ErstelleValidiertAntwort } from "@/lib/api.ts";
 import type { ProzessDef, SchrittDef } from "@/lib/prozesse.ts";
 import { rollenKuerzel, rollenLabel } from "@/lib/rollen.ts";
-import type { AhbFeldErgebnis, Rolle } from "@/lib/types.ts";
+import type { AhbFeldErgebnis } from "@/lib/types.ts";
 import { NACHRICHTEN_TYP_LABEL } from "@/lib/types.ts";
-import type { RegistryWidgetsType, RJSFSchema, UiSchema, WidgetProps } from "@rjsf/utils";
+import {
+	buildContext,
+	empfaengerKandidaten,
+	MALOS,
+	type MaLo,
+	type Persona,
+	seedFormDefaults,
+} from "@/lib/welt.ts";
 
 interface MessageFormProps {
 	rolle: string;
@@ -35,10 +43,7 @@ const uiSchema: UiSchema<FormFields> = {
 
 const isoWidgets: RegistryWidgetsType<FormFields> = {
 	DateWidget: IsoTextWidget("YYYY-MM-DD", "^\\d{4}-\\d{2}-\\d{2}$"),
-	DateTimeWidget: IsoTextWidget(
-		"YYYY-MM-DD HH:MM",
-		"^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}$",
-	),
+	DateTimeWidget: IsoTextWidget("YYYY-MM-DD HH:MM", "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}$"),
 	TimeWidget: IsoTextWidget("HH:MM", "^\\d{2}:\\d{2}$"),
 };
 
@@ -49,11 +54,8 @@ export function MessageForm({ rolle, aktiverProzess, onSent, prozesse }: Message
 		[prozess, rolle],
 	);
 
-	const [selectedTyp, setSelectedTyp] = useState<string | null>(
-		sendbareSchritte[0]?.typ ?? null,
-	);
-	const [rollen, setRollen] = useState<Rolle[]>([]);
-	const [rollenError, setRollenError] = useState<string | null>(null);
+	const [selectedTyp, setSelectedTyp] = useState<string | null>(sendbareSchritte[0]?.typ ?? null);
+	const [selectedMaloId, setSelectedMaloId] = useState<string | null>(null);
 	const [schemaState, setSchemaState] = useState<SchemaState>({
 		status: "idle",
 		schema: null,
@@ -66,40 +68,39 @@ export function MessageForm({ rolle, aktiverProzess, onSent, prozesse }: Message
 	const [lastResult, setLastResult] = useState<ErstelleValidiertAntwort | null>(null);
 
 	const selectedSchritt =
-		sendbareSchritte.find((schritt) => schritt.typ === selectedTyp) ??
-		sendbareSchritte[0] ??
+		sendbareSchritte.find((schritt) => schritt.typ === selectedTyp) ?? sendbareSchritte[0] ?? null;
+
+	const empfaengerKandidatenListe = useMemo(() => {
+		if (!selectedSchritt) return [];
+		return empfaengerKandidaten(rolle, selectedSchritt.empfaenger);
+	}, [rolle, selectedSchritt]);
+
+	const aktiverEmpfaenger =
+		empfaengerKandidatenListe.find((persona) => persona.mpId === empfaengerId) ??
+		empfaengerKandidatenListe[0] ??
 		null;
 
-	const empfaengerRollen = useMemo(() => {
+	const maloKandidaten = useMemo(() => {
 		if (!selectedSchritt) return [];
-		return rollen.filter((r) => r.name === selectedSchritt.empfaenger);
-	}, [rollen, selectedSchritt]);
+		return MALOS.filter(
+			(malo) => malo.beziehungen[rolle] && malo.beziehungen[selectedSchritt.empfaenger],
+		);
+	}, [rolle, selectedSchritt]);
+
+	const selectedMalo =
+		maloKandidaten.find((malo) => malo.id === selectedMaloId) ?? maloKandidaten[0] ?? undefined;
 
 	useEffect(() => {
 		setSelectedTyp(sendbareSchritte[0]?.typ ?? null);
+		setSelectedMaloId(null);
+		setEmpfaengerId("");
 		setFormData({});
 		setLastResult(null);
-	}, [aktiverProzess, rolle, sendbareSchritte]);
+	}, [sendbareSchritte]);
 
 	useEffect(() => {
-		let cancelled = false;
-		api.rollen()
-			.then((loadedRollen) => {
-				if (cancelled) return;
-				setRollen(loadedRollen);
-				setRollenError(null);
-			})
-			.catch((error) => {
-				if (cancelled) return;
-				setRollenError(`Rollen konnten nicht geladen werden: ${String(error)}`);
-			});
+		void schemaReload;
 
-		return () => {
-			cancelled = true;
-		};
-	}, []);
-
-	useEffect(() => {
 		if (!selectedSchritt) {
 			setSchemaState({ status: "idle", schema: null, error: null });
 			return;
@@ -110,7 +111,8 @@ export function MessageForm({ rolle, aktiverProzess, onSent, prozesse }: Message
 		setFormData({});
 		setLastResult(null);
 
-		api.schema(selectedSchritt.typ)
+		api
+			.schema(selectedSchritt.typ)
 			.then((schema) => {
 				if (cancelled) return;
 				setSchemaState({ status: "loaded", schema, error: null });
@@ -130,21 +132,22 @@ export function MessageForm({ rolle, aktiverProzess, onSent, prozesse }: Message
 	}, [selectedSchritt, schemaReload]);
 
 	useEffect(() => {
-		if (!selectedSchritt) {
-			setEmpfaengerId("");
+		if (!selectedSchritt || schemaState.status !== "loaded" || !aktiverEmpfaenger) {
 			return;
 		}
 
-		const passendeRollen = rollen.filter((r) => r.name === selectedSchritt.empfaenger);
-		if (passendeRollen.length === 0) {
-			setEmpfaengerId("");
-			return;
-		}
+		const context = buildContext(rolle, aktiverEmpfaenger, selectedMalo);
+		if (!context) return;
 
-		if (!passendeRollen.some((r) => r.mp_id === empfaengerId)) {
-			setEmpfaengerId(passendeRollen[0].mp_id);
-		}
-	}, [rollen, selectedSchritt, empfaengerId]);
+		setFormData(seedFormDefaults(schemaState.schema, context));
+	}, [
+		rolle,
+		selectedSchritt,
+		selectedMalo,
+		aktiverEmpfaenger,
+		schemaState.status,
+		schemaState.schema,
+	]);
 
 	if (!prozess) {
 		return (
@@ -167,7 +170,7 @@ export function MessageForm({ rolle, aktiverProzess, onSent, prozesse }: Message
 	}
 
 	async function handleSubmit(event: IChangeEvent<FormFields>) {
-		if (!selectedSchritt || schemaState.status !== "loaded" || !empfaengerId) return;
+		if (!selectedSchritt || schemaState.status !== "loaded" || !aktiverEmpfaenger) return;
 
 		const fields = asFormFields(event.formData);
 		setSending(true);
@@ -177,7 +180,7 @@ export function MessageForm({ rolle, aktiverProzess, onSent, prozesse }: Message
 			const result = await api.erstelleValidiert({
 				rolle,
 				empfaenger: selectedSchritt.empfaenger,
-				empfaenger_id: empfaengerId,
+				empfaenger_id: aktiverEmpfaenger.mpId,
 				typ: selectedSchritt.typ,
 				fields,
 			});
@@ -196,7 +199,19 @@ export function MessageForm({ rolle, aktiverProzess, onSent, prozesse }: Message
 
 	function handleSchrittSelect(schritt: SchrittDef) {
 		setSelectedTyp(schritt.typ);
+		setSelectedMaloId(null);
+		setEmpfaengerId("");
 		setFormData({});
+		setLastResult(null);
+	}
+
+	function handleEmpfaengerChange(mpId: string) {
+		setEmpfaengerId(mpId);
+		setLastResult(null);
+	}
+
+	function handleMaloChange(maloId: string) {
+		setSelectedMaloId(maloId);
 		setLastResult(null);
 	}
 
@@ -208,7 +223,7 @@ export function MessageForm({ rolle, aktiverProzess, onSent, prozesse }: Message
 				</CardHeader>
 				<CardContent className="space-y-3">
 					<div>
-						<label className="mb-1 block text-xs text-muted-foreground">Schritt</label>
+						<p className="mb-1 text-xs text-muted-foreground">Schritt</p>
 						<div className="flex flex-wrap gap-1.5">
 							{sendbareSchritte.map((s) => (
 								<button
@@ -241,12 +256,19 @@ export function MessageForm({ rolle, aktiverProzess, onSent, prozesse }: Message
 							<Separator />
 
 							<EmpfaengerAuswahl
-								empfaengerId={empfaengerId}
-								empfaengerRollen={empfaengerRollen}
-								rollenError={rollenError}
+								aktiverEmpfaenger={aktiverEmpfaenger}
+								kandidaten={empfaengerKandidatenListe}
 								schritt={selectedSchritt}
-								onChange={setEmpfaengerId}
+								onChange={handleEmpfaengerChange}
 							/>
+
+							{maloKandidaten.length > 0 && (
+								<MaLoPicker
+									malos={maloKandidaten}
+									selectedMalo={selectedMalo}
+									onChange={handleMaloChange}
+								/>
+							)}
 
 							{schemaState.status === "loading" && <SchemaSkeleton />}
 							{schemaState.status === "error" && (
@@ -279,22 +301,15 @@ export function MessageForm({ rolle, aktiverProzess, onSent, prozesse }: Message
 								>
 									<Button
 										className="mt-3 w-full"
-										disabled={sending || !empfaengerId}
+										disabled={sending || !aktiverEmpfaenger}
 										type="submit"
 									>
-										{sending
-											? "Sende..."
-											: `Senden → ${rollenKuerzel(selectedSchritt.empfaenger)}`}
+										{sending ? "Sende..." : `Senden → ${rollenKuerzel(selectedSchritt.empfaenger)}`}
 									</Button>
 								</Form>
 							)}
 
-							{lastResult && (
-								<SubmitResult
-									result={lastResult}
-									rolle={rolle}
-								/>
-							)}
+							{lastResult && <SubmitResult result={lastResult} rolle={rolle} />}
 						</>
 					)}
 				</CardContent>
@@ -304,23 +319,17 @@ export function MessageForm({ rolle, aktiverProzess, onSent, prozesse }: Message
 }
 
 function EmpfaengerAuswahl({
-	empfaengerId,
-	empfaengerRollen,
-	rollenError,
+	aktiverEmpfaenger,
+	kandidaten,
 	schritt,
 	onChange,
 }: {
-	empfaengerId: string;
-	empfaengerRollen: Rolle[];
-	rollenError: string | null;
+	aktiverEmpfaenger: Persona | null;
+	kandidaten: Persona[];
 	schritt: SchrittDef;
 	onChange: (value: string) => void;
 }) {
-	if (rollenError) {
-		return <p className="text-destructive text-xs">{rollenError}</p>;
-	}
-
-	if (empfaengerRollen.length === 0) {
+	if (!aktiverEmpfaenger) {
 		return (
 			<p className="text-destructive text-xs">
 				Keine MP-ID für {rollenLabel(schritt.empfaenger)} gefunden.
@@ -328,11 +337,15 @@ function EmpfaengerAuswahl({
 		);
 	}
 
-	if (empfaengerRollen.length === 1) {
+	if (kandidaten.length === 1) {
 		return (
 			<div className="rounded border border-border bg-muted/40 px-2 py-1.5 text-xs">
-				<span className="text-muted-foreground">Empfänger-MP-ID: </span>
-				<span className="font-mono">{empfaengerRollen[0].mp_id}</span>
+				<span className="text-muted-foreground">An: </span>
+				<span className="font-medium">
+					{aktiverEmpfaenger.vorname} {aktiverEmpfaenger.nachname}
+				</span>
+				<span className="text-muted-foreground"> · {aktiverEmpfaenger.firma} · </span>
+				<span className="font-mono text-[11px]">{aktiverEmpfaenger.mpId}</span>
 			</div>
 		);
 	}
@@ -344,23 +357,70 @@ function EmpfaengerAuswahl({
 			</label>
 			<select
 				id="empfaenger-id"
-				className="w-full rounded border border-input bg-background px-2 py-1.5 font-mono text-sm"
-				value={empfaengerId}
+				className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs"
+				value={aktiverEmpfaenger.mpId}
 				onChange={(event) => onChange(event.target.value)}
 			>
-				{empfaengerRollen.map((empfaengerRolle) => (
-					<option key={empfaengerRolle.mp_id} value={empfaengerRolle.mp_id}>
-						{empfaengerRolle.mp_id}
+				{kandidaten.map((kandidat) => (
+					<option key={kandidat.mpId} value={kandidat.mpId}>
+						{kandidat.vorname} {kandidat.nachname} — {kandidat.firma}
 					</option>
 				))}
 			</select>
+			<p className="mt-1 font-mono text-[11px] text-muted-foreground">{aktiverEmpfaenger.mpId}</p>
+		</div>
+	);
+}
+
+function MaLoPicker({
+	malos,
+	selectedMalo,
+	onChange,
+}: {
+	malos: MaLo[];
+	selectedMalo: MaLo | undefined;
+	onChange: (value: string) => void;
+}) {
+	return (
+		<div className="space-y-1.5">
+			<p className="text-xs text-muted-foreground">Marktlokation</p>
+			<div className="grid gap-1.5 sm:grid-cols-2">
+				{malos.map((malo) => (
+					<button
+						key={malo.id}
+						type="button"
+						aria-pressed={selectedMalo?.id === malo.id}
+						className={`rounded border px-2 py-1.5 text-left text-xs transition-colors ${
+							selectedMalo?.id === malo.id
+								? "border-primary bg-primary/10"
+								: "border-border hover:bg-accent"
+						}`}
+						onClick={() => onChange(malo.id)}
+					>
+						<span className="flex items-center justify-between gap-2">
+							<span className="truncate font-medium">{malo.bezeichnung}</span>
+							<Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+								{malo.sparte}
+							</Badge>
+						</span>
+						<span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">
+							{malo.id}
+						</span>
+					</button>
+				))}
+			</div>
+			{selectedMalo && (
+				<p className="line-clamp-2 text-muted-foreground text-xs leading-snug">
+					{selectedMalo.story}
+				</p>
+			)}
 		</div>
 	);
 }
 
 function SchemaSkeleton() {
 	return (
-		<div className="space-y-3" aria-busy="true" aria-label="Schema lädt">
+		<div className="space-y-3" aria-busy="true" aria-label="Schema lädt" role="status">
 			<div className="h-4 w-24 animate-pulse rounded bg-muted" />
 			<div className="h-8 animate-pulse rounded bg-muted" />
 			<div className="h-4 w-32 animate-pulse rounded bg-muted" />
@@ -417,9 +477,9 @@ function AhbProblems({ problems }: { problems: AhbFeldErgebnis[] }) {
 		<div>
 			<p className="mb-1 font-medium">AHB-Probleme</p>
 			<ul className="space-y-1">
-				{problems.map((problem, index) => (
+				{problems.map((problem) => (
 					<li
-						key={`${problem.name}-${problem.segment_code ?? "segment"}-${index}`}
+						key={`${problem.name}-${problem.segment_code ?? "segment"}-${problem.details ?? "ohne-detail"}-${problem.erwarteter_wert ?? "ohne-erwartung"}`}
 						className="rounded border border-destructive/20 bg-background/60 px-2 py-1"
 					>
 						<span className="font-medium">{problem.name}</span>

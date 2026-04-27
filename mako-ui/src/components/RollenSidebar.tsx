@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge.tsx";
 import { rollenKuerzel, rollenLabel } from "@/lib/rollen.ts";
 import type { Rolle } from "@/lib/types.ts";
+import { personaForRolle } from "@/lib/welt.ts";
 
 interface RollenSidebarProps {
 	rollen: Rolle[];
@@ -57,12 +58,7 @@ const GRUPPEN: Gruppe[] = [
 	{
 		id: "erzeugung",
 		label: "Erzeugung & Vermarktung",
-		slugs: [
-			"betreiber_erzeugungsanlage",
-			"direktvermarkter",
-			"aggregator",
-			"ladepunktbetreiber",
-		],
+		slugs: ["betreiber_erzeugungsanlage", "direktvermarkter", "aggregator", "ladepunktbetreiber"],
 	},
 	{
 		id: "strom_sonstige",
@@ -117,7 +113,10 @@ function partition(rollen: Rolle[]): Map<string, Rolle[]> {
 	return buckets;
 }
 
-function gruppenSummen(buckets: Map<string, Rolle[]>, counts: Record<string, number>): Record<string, number> {
+function gruppenSummen(
+	buckets: Map<string, Rolle[]>,
+	counts: Record<string, number>,
+): Record<string, number> {
 	const out: Record<string, number> = {};
 	for (const [id, list] of buckets) {
 		out[id] = list.reduce((sum, r) => sum + (counts[r.name] ?? 0), 0);
@@ -196,9 +195,7 @@ export function RollenSidebar({
 								<span className="flex-1 font-medium uppercase tracking-wide text-muted-foreground">
 									{label}
 								</span>
-								<span className="text-[10px] text-muted-foreground/70">
-									{list.length}
-								</span>
+								<span className="text-[10px] text-muted-foreground/70">{list.length}</span>
 								{sum > 0 && (
 									<Badge variant="secondary" className="ml-1 h-4 min-w-4 px-1 text-[9px]">
 										{sum}
@@ -210,25 +207,41 @@ export function RollenSidebar({
 									{list.map((r) => {
 										const active = r.name === aktiveRolle;
 										const count = unreadCounts[r.name] ?? 0;
+										const persona = personaForRolle(r.name);
 										return (
 											<li key={r.name}>
 												<button
 													type="button"
 													onClick={() => onRolleChange(r.name)}
 													className={`flex w-full items-center gap-2 rounded px-2 py-1 pl-6 text-left text-xs ${
-														active
-															? "bg-primary/10 font-medium text-primary"
-															: "hover:bg-muted/60"
+														active ? "bg-primary/10 font-medium text-primary" : "hover:bg-muted/60"
 													}`}
 												>
-													<span className="flex-1 truncate">{rollenLabel(r.name)}</span>
-													<span
-														className={`shrink-0 text-[9px] tabular-nums ${
-															active ? "text-primary/70" : "text-muted-foreground/60"
-														}`}
-													>
-														{rollenKuerzel(r.name)}
+													<span className="min-w-0 flex-1">
+														<span className="block truncate">
+															{persona
+																? `${persona.rollenKuerzel} — ${persona.vorname} ${persona.nachname}`
+																: rollenLabel(r.name)}
+														</span>
+														{persona && (
+															<span
+																className={`block truncate text-[10px] leading-3 ${
+																	active ? "text-primary/70" : "text-muted-foreground/70"
+																}`}
+															>
+																{persona.firma}
+															</span>
+														)}
 													</span>
+													{!persona && (
+														<span
+															className={`shrink-0 text-[9px] tabular-nums ${
+																active ? "text-primary/70" : "text-muted-foreground/60"
+															}`}
+														>
+															{rollenKuerzel(r.name)}
+														</span>
+													)}
 													{count > 0 && (
 														<Badge
 															variant={active ? "default" : "secondary"}

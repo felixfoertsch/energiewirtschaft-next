@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils.ts";
 import type { Urteil, VerifikationsErgebnis } from "@/lib/types.ts";
+import { cn } from "@/lib/utils.ts";
 
 interface VerifikationsBadgeProps {
 	ergebnis: VerifikationsErgebnis;
@@ -42,10 +42,7 @@ export function VerifikationsBadge({ ergebnis, className }: VerifikationsBadgePr
 	const indicators = deriveIndicators(ergebnis);
 
 	return (
-		<div
-			className={cn("inline-flex items-center gap-1", className)}
-			title="AHB / EBD / Codec"
-		>
+		<div className={cn("inline-flex items-center gap-1", className)} title="AHB / EBD / Codec">
 			{indicators.map((ind) => (
 				<span
 					key={ind.label}

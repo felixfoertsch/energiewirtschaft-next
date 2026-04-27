@@ -1,3 +1,4 @@
+import type { RJSFSchema } from "@rjsf/utils";
 import type {
 	BatchErgebnis,
 	MarktStatus,
@@ -6,7 +7,6 @@ import type {
 	Rolle,
 	VerifikationsErgebnis,
 } from "./types.ts";
-import type { RJSFSchema } from "@rjsf/utils";
 
 export interface ErstelleValidiertPayload {
 	rolle: string;
@@ -71,8 +71,7 @@ export const api = {
 		get<VerifikationsErgebnis>(`/verifiziere/${rolle}/${box}/${datei}`),
 	verifiziereBatch: (verzeichnis?: string) =>
 		post<BatchErgebnis>("/verifiziere-batch", verzeichnis ? { verzeichnis } : undefined),
-	kreuzvalidatorStatus: () =>
-		get<{ verfuegbar: boolean }>("/kreuzvalidator-status"),
+	kreuzvalidatorStatus: () => get<{ verfuegbar: boolean }>("/kreuzvalidator-status"),
 };
 
 export function subscribeEvents(onMessage: (data: unknown) => void): () => void {

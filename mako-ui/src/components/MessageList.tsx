@@ -1,8 +1,8 @@
+import { StatusBadge } from "@/components/StatusBadge.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
-import { StatusBadge } from "@/components/StatusBadge.tsx";
 import { VerifikationsBadge } from "@/components/VerifikationsBadge.tsx";
 import { rollenLabel } from "@/lib/rollen.ts";
 import type { NachrichtMeta, VerifikationsErgebnis } from "@/lib/types.ts";
@@ -26,9 +26,7 @@ export function MessageList({
 }: MessageListProps) {
 	return (
 		<div className="flex h-full flex-col overflow-hidden p-4">
-			<h2 className="mb-2 font-semibold text-sm text-muted-foreground">
-				Inbox ({inbox.length})
-			</h2>
+			<h2 className="mb-2 font-semibold text-sm text-muted-foreground">Inbox ({inbox.length})</h2>
 			<ScrollArea className="min-h-0 flex-1">
 				<MessageCards
 					nachrichten={inbox}
@@ -40,9 +38,7 @@ export function MessageList({
 				/>
 			</ScrollArea>
 			<Separator className="my-3" />
-			<h2 className="mb-2 font-semibold text-sm text-muted-foreground">
-				Outbox ({outbox.length})
-			</h2>
+			<h2 className="mb-2 font-semibold text-sm text-muted-foreground">Outbox ({outbox.length})</h2>
 			<ScrollArea className="min-h-0 flex-1">
 				<MessageCards
 					nachrichten={outbox}

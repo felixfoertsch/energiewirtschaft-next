@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils.ts";
 import type { NachrichtenStatus } from "@/lib/types.ts";
+import { cn } from "@/lib/utils.ts";
 
 interface StatusBadgeProps {
 	status: NachrichtenStatus;

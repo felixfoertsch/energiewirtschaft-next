@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { watch } from "chokidar";
 import cors from "cors";
@@ -10,7 +10,9 @@ const app = express();
 // Default-deny CORS: this server runs on localhost and reads/writes the local
 // markt directory and invokes the CLI. We only allow same-origin and explicit
 // dev origins from MAKO_ALLOWED_ORIGINS (comma-separated).
-const ALLOWED_ORIGINS = (process.env["MAKO_ALLOWED_ORIGINS"] ?? "http://localhost:5173,http://127.0.0.1:5173")
+const ALLOWED_ORIGINS = (
+	process.env.MAKO_ALLOWED_ORIGINS ?? "http://localhost:5173,http://127.0.0.1:5173"
+)
 	.split(",")
 	.map((s) => s.trim())
 	.filter(Boolean);
@@ -28,14 +30,14 @@ app.use(
 );
 app.use(express.json());
 
-const MARKT = resolve(process.env["MAKO_MARKT_PATH"] ?? "markt");
-const CLI = resolve(process.env["MAKO_CLI_PATH"] ?? "../target/debug/mako-cli");
+const MARKT = resolve(process.env.MAKO_MARKT_PATH ?? "markt");
+const CLI = resolve(process.env.MAKO_CLI_PATH ?? "../target/debug/mako-cli");
 
 // Route prefix. Default "/api" matches the local-dev shape (vite proxies
 // /api → port 3001). When deployed behind an Apache web backend that strips
 // a path prefix (e.g. "/ewn/api" → port 3010 with --remove-prefix), set
 // API_PREFIX="" so routes mount at the root.
-const API = process.env["API_PREFIX"] ?? "/api";
+const API = process.env.API_PREFIX ?? "/api";
 
 function cli(args: string[]): string {
 	return execFileSync(CLI, args, { encoding: "utf-8", timeout: 10_000 });
@@ -62,7 +64,9 @@ function readJsonSafe(path: string): unknown {
 
 function listFiles(dir: string): string[] {
 	if (!existsSync(dir)) return [];
-	return readdirSync(dir).filter((f) => !f.startsWith(".")).sort();
+	return readdirSync(dir)
+		.filter((f) => !f.startsWith("."))
+		.sort();
 }
 
 function param(req: Request, name: string): string {
@@ -426,7 +430,12 @@ app.post(`${API}/verifiziere-batch`, (req: Request, res: Response) => {
 	const key = typeof verzeichnis === "string" && verzeichnis.length > 0 ? verzeichnis : "markt";
 	const dir = BATCH_ROOTS[key];
 	if (!dir) {
-		badRequest(res, new Error(`unbekanntes verzeichnis '${key}'. erlaubt: ${Object.keys(BATCH_ROOTS).join(", ")}`));
+		badRequest(
+			res,
+			new Error(
+				`unbekanntes verzeichnis '${key}'. erlaubt: ${Object.keys(BATCH_ROOTS).join(", ")}`,
+			),
+		);
 		return;
 	}
 
@@ -498,7 +507,7 @@ app.get(`${API}/events`, (_req: Request, res: Response) => {
 		"Cache-Control": "no-cache",
 		Connection: "keep-alive",
 	});
-	res.write("data: {\"type\":\"connected\"}\n\n");
+	res.write('data: {"type":"connected"}\n\n');
 	clients.add(res);
 	_req.on("close", () => clients.delete(res));
 });
@@ -520,7 +529,7 @@ if (existsSync(MARKT)) {
 	});
 }
 
-const PORT = Number(process.env["PORT"]) || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 app.listen(PORT, () => {
 	console.log(`mako-ui server on http://localhost:${PORT}`);
 	console.log(`  markt: ${MARKT}`);

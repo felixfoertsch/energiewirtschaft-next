@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge.tsx";
 import { Card, CardContent } from "@/components/ui/card.tsx";
-import { rollenLabel } from "@/lib/rollen.ts";
 import type { ProzessDef } from "@/lib/prozesse.ts";
+import { rollenLabel } from "@/lib/rollen.ts";
 
 export interface Aufgabe {
 	prozessKey: string;
@@ -22,18 +22,23 @@ export function deriveAufgaben(
 		const prozess = prozesse.find((p) => p.key === prozessKey);
 		if (!prozess) continue;
 
-		const zustandStr = typeof zustand === "string"
-			? zustand
-			: typeof zustand === "object" && zustand !== null
-				? JSON.stringify(zustand)
-				: String(zustand);
+		const zustandStr =
+			typeof zustand === "string"
+				? zustand
+				: typeof zustand === "object" && zustand !== null
+					? JSON.stringify(zustand)
+					: String(zustand);
 
 		// Find the next step that requires action from a different role
 		for (const schritt of prozess.schritte) {
 			if (schritt.absender !== aktiveRolle && schritt.empfaenger === aktiveRolle) {
 				// This role needs to process incoming → could be a task
 				// Only show if state suggests we're at this step
-				if (zustandStr.includes("Eingegangen") || zustandStr.includes("Empfangen") || zustandStr.includes("Gesendet")) {
+				if (
+					zustandStr.includes("Eingegangen") ||
+					zustandStr.includes("Empfangen") ||
+					zustandStr.includes("Gesendet")
+				) {
 					aufgaben.push({
 						prozessKey: key,
 						prozessName: prozess.name,

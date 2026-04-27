@@ -1,7 +1,6 @@
-import { cn } from "@/lib/utils.ts";
+import { EbdBaum } from "@/components/EbdBaum.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
-import { EbdBaum } from "@/components/EbdBaum.tsx";
 import type {
 	AhbErgebnis,
 	AhbFeldErgebnis,
@@ -10,6 +9,7 @@ import type {
 	Urteil,
 	VerifikationsErgebnis,
 } from "@/lib/types.ts";
+import { cn } from "@/lib/utils.ts";
 
 interface VerifikationsPanelProps {
 	ergebnis: VerifikationsErgebnis;
@@ -29,11 +29,7 @@ const urteilColor: Record<Urteil, string> = {
 };
 
 function UrteilBadge({ urteil }: { urteil: Urteil }) {
-	return (
-		<span className={cn("font-mono text-sm", urteilColor[urteil])}>
-			{urteilIcon[urteil]}
-		</span>
-	);
+	return <span className={cn("font-mono text-sm", urteilColor[urteil])}>{urteilIcon[urteil]}</span>;
 }
 
 // ---------------------------------------------------------------------------
@@ -43,9 +39,7 @@ function UrteilBadge({ urteil }: { urteil: Urteil }) {
 function AhbTab({ ahb }: { ahb: AhbErgebnis | null }) {
 	if (!ahb) {
 		return (
-			<p className="py-4 text-center text-muted-foreground text-sm">
-				Keine AHB-Prüfung verfügbar.
-			</p>
+			<p className="py-4 text-center text-muted-foreground text-sm">Keine AHB-Prüfung verfügbar.</p>
 		);
 	}
 
@@ -72,9 +66,9 @@ function AhbTab({ ahb }: { ahb: AhbErgebnis | null }) {
 						</tr>
 					</thead>
 					<tbody>
-						{ahb.felder.map((f: AhbFeldErgebnis, i: number) => (
+						{ahb.felder.map((f: AhbFeldErgebnis) => (
 							<tr
-								key={i}
+								key={`${f.segment_code ?? "segment"}-${f.name}-${f.ahb_ausdruck}`}
 								className={cn(
 									"border-b border-border/50",
 									f.urteil === "Fehlgeschlagen" && "bg-destructive/10",
@@ -108,9 +102,7 @@ function AhbTab({ ahb }: { ahb: AhbErgebnis | null }) {
 function EbdTab({ ebd }: { ebd: EbdErgebnis | null }) {
 	if (!ebd) {
 		return (
-			<p className="py-4 text-center text-muted-foreground text-sm">
-				Keine EBD-Prüfung verfügbar.
-			</p>
+			<p className="py-4 text-center text-muted-foreground text-sm">Keine EBD-Prüfung verfügbar.</p>
 		);
 	}
 
@@ -123,13 +115,11 @@ function EbdTab({ ebd }: { ebd: EbdErgebnis | null }) {
 				</span>
 				<UrteilBadge urteil={ebd.urteil} />
 			</div>
-			{ebd.details && (
-				<p className="text-muted-foreground text-xs">{ebd.details}</p>
-			)}
+			{ebd.details && <p className="text-muted-foreground text-xs">{ebd.details}</p>}
 			{ebd.unser_ergebnis && (
 				<div className="rounded border bg-muted/50 p-2 text-xs">
-					<span className="font-medium">Unser Ergebnis:</span>{" "}
-					Schritt {ebd.unser_ergebnis.schritt} — {ebd.unser_ergebnis.beschreibung}
+					<span className="font-medium">Unser Ergebnis:</span> Schritt {ebd.unser_ergebnis.schritt}{" "}
+					— {ebd.unser_ergebnis.beschreibung}
 					{ebd.unser_ergebnis.antwortcode && (
 						<span className="font-mono"> [{ebd.unser_ergebnis.antwortcode}]</span>
 					)}
@@ -162,19 +152,35 @@ function CodecTab({ interop }: { interop: InteropErgebnis | null }) {
 				<div className="flex gap-3 text-xs">
 					<span>
 						Parse (unser):{" "}
-						<span className={interop.parse_ok_unser ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}>
+						<span
+							className={
+								interop.parse_ok_unser
+									? "text-emerald-600 dark:text-emerald-400"
+									: "text-destructive"
+							}
+						>
 							{interop.parse_ok_unser ? "OK" : "Fehler"}
 						</span>
 					</span>
 					<span>
 						Parse (Drittanbieter):{" "}
-						<span className={interop.parse_ok_drittanbieter ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}>
+						<span
+							className={
+								interop.parse_ok_drittanbieter
+									? "text-emerald-600 dark:text-emerald-400"
+									: "text-destructive"
+							}
+						>
 							{interop.parse_ok_drittanbieter ? "OK" : "Fehler"}
 						</span>
 					</span>
 					<span>
 						Roundtrip:{" "}
-						<span className={interop.roundtrip_ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}>
+						<span
+							className={
+								interop.roundtrip_ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+							}
+						>
 							{interop.roundtrip_ok ? "OK" : "Fehler"}
 						</span>
 					</span>
@@ -193,9 +199,9 @@ function CodecTab({ interop }: { interop: InteropErgebnis | null }) {
 							</tr>
 						</thead>
 						<tbody>
-							{interop.feldvergleiche.map((fv, i) => (
+							{interop.feldvergleiche.map((fv) => (
 								<tr
-									key={i}
+									key={`${fv.feld}-${fv.unser_wert ?? "leer"}-${fv.drittanbieter_wert ?? "leer"}`}
 									className={cn(
 										"border-b border-border/50",
 										!fv.stimmt_ueberein && "bg-destructive/10",

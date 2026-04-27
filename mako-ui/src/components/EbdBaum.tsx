@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils.ts";
 import type { EbdAusgang } from "@/lib/types.ts";
+import { cn } from "@/lib/utils.ts";
 
 interface EbdBaumProps {
 	ausgaenge: EbdAusgang[];
@@ -25,7 +25,10 @@ export function EbdBaum({ ausgaenge, unserSchritt, className }: EbdBaumProps) {
 					const isLast = i === ausgaenge.length - 1;
 
 					return (
-						<div key={i} className="flex gap-2">
+						<div
+							key={`${a.schritt}-${a.antwortcode ?? "ohne-code"}-${a.beschreibung}`}
+							className="flex gap-2"
+						>
 							{/* Vertical connector line */}
 							<div className="flex w-5 flex-col items-center">
 								<div
@@ -39,10 +42,7 @@ export function EbdBaum({ ausgaenge, unserSchritt, className }: EbdBaumProps) {
 									{a.schritt.length <= 2 ? a.schritt : i + 1}
 								</div>
 								{!isLast && (
-									<div className={cn(
-										"w-px flex-1",
-										isMatch ? "bg-emerald-500/50" : "bg-border",
-									)} />
+									<div className={cn("w-px flex-1", isMatch ? "bg-emerald-500/50" : "bg-border")} />
 								)}
 							</div>
 
@@ -63,9 +63,7 @@ export function EbdBaum({ ausgaenge, unserSchritt, className }: EbdBaumProps) {
 										</span>
 									)}
 								</div>
-								{a.notiz && (
-									<p className="mt-0.5 text-muted-foreground text-[10px]">{a.notiz}</p>
-								)}
+								{a.notiz && <p className="mt-0.5 text-muted-foreground text-[10px]">{a.notiz}</p>}
 								{isMatch && (
 									<span className="mt-0.5 block font-medium text-[10px] text-emerald-700 dark:text-emerald-400">
 										← Unser Ergebnis

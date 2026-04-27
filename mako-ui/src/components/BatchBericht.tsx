@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { cn } from "@/lib/utils.ts";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
 import type { BatchErgebnis, Urteil, VerifikationsErgebnis } from "@/lib/types.ts";
+import { cn } from "@/lib/utils.ts";
 
 interface BatchBerichtProps {
 	ergebnis: BatchErgebnis;
@@ -38,7 +38,10 @@ function urteilLabel(u: Urteil | null): string {
 	}
 }
 
-function filterErgebnisse(ergebnisse: VerifikationsErgebnis[], filter: Filter): VerifikationsErgebnis[] {
+function filterErgebnisse(
+	ergebnisse: VerifikationsErgebnis[],
+	filter: Filter,
+): VerifikationsErgebnis[] {
 	switch (filter) {
 		case "alle":
 			return ergebnisse;
@@ -116,24 +119,41 @@ export function BatchBericht({ ergebnis, onClose }: BatchBerichtProps) {
 								{filtered.map((e) => (
 									<tr
 										key={e.datei}
-										className={cn(
-											"border-b border-border/50",
-											urteilBg[e.gesamt_urteil],
-										)}
+										className={cn("border-b border-border/50", urteilBg[e.gesamt_urteil])}
 									>
 										<td className="px-2 py-1 font-mono text-xs">{e.datei}</td>
 										<td className="px-2 py-1">{e.nachrichtentyp}</td>
 										<td className="px-2 py-1 font-mono text-xs">{e.pruefidentifikator ?? "–"}</td>
-										<td className={cn("px-2 py-1 text-center", e.ahb ? urteilColor[e.ahb.urteil] : "text-muted-foreground")}>
+										<td
+											className={cn(
+												"px-2 py-1 text-center",
+												e.ahb ? urteilColor[e.ahb.urteil] : "text-muted-foreground",
+											)}
+										>
 											{urteilLabel(e.ahb?.urteil ?? null)}
 										</td>
-										<td className={cn("px-2 py-1 text-center", e.ebd ? urteilColor[e.ebd.urteil] : "text-muted-foreground")}>
+										<td
+											className={cn(
+												"px-2 py-1 text-center",
+												e.ebd ? urteilColor[e.ebd.urteil] : "text-muted-foreground",
+											)}
+										>
 											{urteilLabel(e.ebd?.urteil ?? null)}
 										</td>
-										<td className={cn("px-2 py-1 text-center", e.interop ? urteilColor[e.interop.urteil] : "text-muted-foreground")}>
+										<td
+											className={cn(
+												"px-2 py-1 text-center",
+												e.interop ? urteilColor[e.interop.urteil] : "text-muted-foreground",
+											)}
+										>
 											{urteilLabel(e.interop?.urteil ?? null)}
 										</td>
-										<td className={cn("px-2 py-1 text-center font-medium", urteilColor[e.gesamt_urteil])}>
+										<td
+											className={cn(
+												"px-2 py-1 text-center font-medium",
+												urteilColor[e.gesamt_urteil],
+											)}
+										>
 											{urteilLabel(e.gesamt_urteil)}
 										</td>
 									</tr>

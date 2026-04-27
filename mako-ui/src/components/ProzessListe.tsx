@@ -1,5 +1,4 @@
 import { ScrollArea } from "@/components/ui/scroll-area.tsx";
-import { cn } from "@/lib/utils.ts";
 import {
 	KATEGORIEN,
 	kategorieLabel,
@@ -7,6 +6,7 @@ import {
 	type ProzessKategorie,
 	prozesseFuerRolle,
 } from "@/lib/prozesse.ts";
+import { cn } from "@/lib/utils.ts";
 
 interface ProzessListeProps {
 	rolle: string;

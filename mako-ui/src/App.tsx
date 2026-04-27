@@ -10,10 +10,52 @@ import { RollenSidebar } from "@/components/RollenSidebar.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { api, subscribeEvents } from "@/lib/api.ts";
 import type { BatchErgebnis, NachrichtMeta, ProzessDef, Rolle } from "@/lib/types.ts";
+import { malosFuerRolle, personaForRolle, WELT_NAME } from "@/lib/welt.ts";
 
 interface Selection {
 	datei: string;
 	box: "inbox" | "outbox";
+}
+
+function WeltHero({ rolle }: { rolle: string }) {
+	const persona = personaForRolle(rolle);
+	const malos = malosFuerRolle(rolle);
+
+	return (
+		<section className="min-h-[86px] border-b bg-card px-3 py-2">
+			{persona ? (
+				<div className="min-w-0">
+					<div className="flex min-w-0 items-center justify-between gap-3">
+						<p className="min-w-0 truncate font-medium text-sm">
+							Du bist {persona.vorname} {persona.nachname} · {persona.firma} · MP-ID {persona.mpId}
+						</p>
+						<span className="shrink-0 rounded border px-1.5 py-0.5 text-[10px] text-muted-foreground">
+							Welt: {WELT_NAME}
+						</span>
+					</div>
+					<p className="mt-0.5 truncate text-muted-foreground text-xs">{persona.beschreibung}</p>
+					<div className="mt-1 flex gap-1 overflow-x-auto pb-0.5">
+						{malos.length > 0 ? (
+							malos.map((malo) => (
+								<span
+									key={malo.id}
+									title={malo.story}
+									className="inline-flex shrink-0 items-center gap-1 rounded border bg-muted/40 px-1.5 py-0.5 text-[10px]"
+								>
+									<span className="max-w-[12rem] truncate">{malo.bezeichnung}</span>
+									<span className="font-mono text-muted-foreground">{malo.id}</span>
+								</span>
+							))
+						) : (
+							<span className="text-[10px] text-muted-foreground">
+								Keine Marktlokation in dieser Welt.
+							</span>
+						)}
+					</div>
+				</div>
+			) : null}
+		</section>
+	);
 }
 
 export function App() {
@@ -45,7 +87,8 @@ export function App() {
 	// One-shot: the engine's process catalog only changes on server restart,
 	// so we never need to refetch this during the session.
 	useEffect(() => {
-		api.prozesse()
+		api
+			.prozesse()
 			.then(setProzesse)
 			.catch((e) => setServerError(`Prozesskatalog nicht ladbar: ${String(e)}`));
 	}, []);
@@ -175,6 +218,7 @@ export function App() {
 				/>
 
 				<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+					<WeltHero rolle={aktiveRolle} />
 					<div className="grid min-h-0 flex-1 grid-cols-[240px_1fr_1fr] overflow-hidden">
 						{/* Left: Aufgaben + Prozesse */}
 						<div className="flex flex-col overflow-hidden border-r">
@@ -226,16 +270,17 @@ export function App() {
 					</div>
 
 					{/* Bottom: Process Timeline */}
-					<ProcessTimeline prozessKey={aktiverProzess} aktiveRolle={aktiveRolle} prozesse={prozesse} />
+					<ProcessTimeline
+						prozessKey={aktiverProzess}
+						aktiveRolle={aktiveRolle}
+						prozesse={prozesse}
+					/>
 				</div>
 			</div>
 
 			{/* Batch verification modal */}
 			{batchErgebnis && (
-				<BatchBericht
-					ergebnis={batchErgebnis}
-					onClose={() => setBatchErgebnis(null)}
-				/>
+				<BatchBericht ergebnis={batchErgebnis} onClose={() => setBatchErgebnis(null)} />
 			)}
 		</div>
 	);

@@ -1,6 +1,6 @@
-import { cn } from "@/lib/utils.ts";
 import { kategorieLabel, type ProzessDef } from "@/lib/prozesse.ts";
 import { rollenKuerzel } from "@/lib/rollen.ts";
+import { cn } from "@/lib/utils.ts";
 
 interface ProcessTimelineProps {
 	prozessKey: string | null;
@@ -22,10 +22,11 @@ export function ProcessTimeline({ prozessKey, aktiveRolle, prozesse }: ProcessTi
 					const istAbsender = s.absender === aktiveRolle;
 					const istEmpfaenger = s.empfaenger === aktiveRolle;
 					return (
-						<div key={s.typ + i} className="flex items-center gap-1">
-							{i > 0 && (
-								<div className="h-px w-4 bg-border" />
-							)}
+						<div
+							key={`${s.typ}-${s.absender}-${s.empfaenger}-${s.name}`}
+							className="flex items-center gap-1"
+						>
+							{i > 0 && <div className="h-px w-4 bg-border" />}
 							<div
 								className={cn(
 									"flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px]",
@@ -35,9 +36,7 @@ export function ProcessTimeline({ prozessKey, aktiveRolle, prozesse }: ProcessTi
 								)}
 								title={`${s.name}: ${rollenKuerzel(s.absender)} → ${rollenKuerzel(s.empfaenger)}`}
 							>
-								<span className="font-mono text-[10px] text-muted-foreground">
-									{i + 1}
-								</span>
+								<span className="font-mono text-[10px] text-muted-foreground">{i + 1}</span>
 								<span>{s.name}</span>
 								<span className="text-[10px] text-muted-foreground">
 									{rollenKuerzel(s.absender)}→{rollenKuerzel(s.empfaenger)}

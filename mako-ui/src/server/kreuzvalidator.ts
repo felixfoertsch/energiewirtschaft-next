@@ -10,7 +10,9 @@ try {
 	transformer = mod.createTransformer();
 	verfuegbar = true;
 } catch {
-	console.warn("kreuzvalidator: edifact-json-transformer nicht verfügbar — Kreuzvalidierung deaktiviert");
+	console.warn(
+		"kreuzvalidator: edifact-json-transformer nicht verfügbar — Kreuzvalidierung deaktiviert",
+	);
 }
 
 export function isAvailable(): boolean {

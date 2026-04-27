@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
+import { StatusBadge } from "@/components/StatusBadge.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card.tsx";
 import { Separator } from "@/components/ui/separator.tsx";
-import { StatusBadge } from "@/components/StatusBadge.tsx";
 import { VerifikationsPanel } from "@/components/VerifikationsPanel.tsx";
-import { rollenLabel } from "@/lib/rollen.ts";
 import { api } from "@/lib/api.ts";
+import { rollenLabel } from "@/lib/rollen.ts";
 import type { NachrichtMeta, VerifikationsErgebnis } from "@/lib/types.ts";
 
 interface MessageDetailProps {
@@ -23,7 +23,13 @@ interface DetailData {
 	edifact?: string;
 }
 
-export function MessageDetail({ rolle, box, datei, onRolleSwitch, onVerarbeitet }: MessageDetailProps) {
+export function MessageDetail({
+	rolle,
+	box,
+	datei,
+	onRolleSwitch,
+	onVerarbeitet,
+}: MessageDetailProps) {
 	const [data, setData] = useState<DetailData | null>(null);
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [showEdifact, setShowEdifact] = useState(false);
@@ -106,9 +112,7 @@ export function MessageDetail({ rolle, box, datei, onRolleSwitch, onVerarbeitet 
 
 					{/* Zeitpunkt */}
 					{meta.zeitpunkt && (
-						<p className="text-muted-foreground text-xs">
-							{formatIso(meta.zeitpunkt)}
-						</p>
+						<p className="text-muted-foreground text-xs">{formatIso(meta.zeitpunkt)}</p>
 					)}
 
 					{/* Verarbeiten button for inbox messages */}
@@ -131,7 +135,9 @@ export function MessageDetail({ rolle, box, datei, onRolleSwitch, onVerarbeitet 
 								{verarbeitung === "läuft..." ? "Verarbeite..." : "Verarbeiten"}
 							</Button>
 							{verarbeitung && verarbeitung !== "läuft..." && (
-								<span className={`ml-2 text-xs ${verarbeitung === "Verarbeitet" ? "text-emerald-600" : "text-destructive"}`}>
+								<span
+									className={`ml-2 text-xs ${verarbeitung === "Verarbeitet" ? "text-emerald-600" : "text-destructive"}`}
+								>
 									{verarbeitung}
 								</span>
 							)}
@@ -162,9 +168,7 @@ export function MessageDetail({ rolle, box, datei, onRolleSwitch, onVerarbeitet 
 					</div>
 
 					{/* Verification result */}
-					{verifikation && (
-						<VerifikationsPanel ergebnis={verifikation} />
-					)}
+					{verifikation && <VerifikationsPanel ergebnis={verifikation} />}
 
 					<Separator />
 
