@@ -8,9 +8,10 @@ import { ProcessTimeline } from "@/components/ProcessTimeline.tsx";
 import { ProzessListe } from "@/components/ProzessListe.tsx";
 import { RollenSidebar } from "@/components/RollenSidebar.tsx";
 import { Button } from "@/components/ui/button.tsx";
+import { WeltStartseite } from "@/components/WeltStartseite.tsx";
 import { api, subscribeEvents } from "@/lib/api.ts";
 import type { BatchErgebnis, NachrichtMeta, ProzessDef, Rolle } from "@/lib/types.ts";
-import { malosFuerRolle, personaForRolle, WELT_NAME } from "@/lib/welt.ts";
+import { MALOS, malosFuerRolle, personaForRolle, WELT_NAME } from "@/lib/welt.ts";
 
 interface Selection {
 	datei: string;
@@ -78,11 +79,10 @@ export function App() {
 			const r = await api.rollen();
 			setServerError(null);
 			setRollen(r);
-			if (r.length > 0 && !aktiveRolle) setAktiveRolle(r[0].name);
 		} catch (e) {
 			setServerError(`Server nicht erreichbar (rollen): ${String(e)}`);
 		}
-	}, [aktiveRolle]);
+	}, []);
 
 	// One-shot: the engine's process catalog only changes on server restart,
 	// so we never need to refetch this during the session.
@@ -156,6 +156,13 @@ export function App() {
 		setShowForm(false);
 	}, []);
 
+	const handleHome = useCallback(() => {
+		setAktiveRolle("");
+		setSelection(null);
+		setShowForm(false);
+		setAktiverProzess(null);
+	}, []);
+
 	const handleSelect = useCallback((datei: string, box: "inbox" | "outbox") => {
 		setSelection({ datei, box });
 		setShowForm(false);
@@ -172,7 +179,15 @@ export function App() {
 	return (
 		<div className="flex h-screen flex-col">
 			<header className="flex items-center justify-between border-b px-6 py-3">
-				<h1 className="font-bold text-xl">MaKo-Simulator</h1>
+				<h1 className="font-bold text-xl">
+					<button
+						type="button"
+						className="cursor-pointer underline-offset-4 hover:underline"
+						onClick={handleHome}
+					>
+						MaKo-Simulator
+					</button>
+				</h1>
 				<Button
 					variant="outline"
 					size="sm"
@@ -218,63 +233,69 @@ export function App() {
 				/>
 
 				<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-					<WeltHero rolle={aktiveRolle} />
-					<div className="grid min-h-0 flex-1 grid-cols-[240px_1fr_1fr] overflow-hidden">
-						{/* Left: Aufgaben + Prozesse */}
-						<div className="flex flex-col overflow-hidden border-r">
-							<AufgabenQueue aufgaben={aufgaben} onRolleSwitch={handleRolleChange} />
-							<ProzessListe
-								rolle={aktiveRolle}
-								aktiverProzess={aktiverProzess}
-								onSelect={handleProzessSelect}
+					{aktiveRolle === "" ? (
+						<WeltStartseite malos={MALOS} onRolleSelect={handleRolleChange} />
+					) : (
+						<>
+							<WeltHero rolle={aktiveRolle} />
+							<div className="grid min-h-0 flex-1 grid-cols-[240px_1fr_1fr] overflow-hidden">
+								{/* Left: Aufgaben + Prozesse */}
+								<div className="flex flex-col overflow-hidden border-r">
+									<AufgabenQueue aufgaben={aufgaben} onRolleSwitch={handleRolleChange} />
+									<ProzessListe
+										rolle={aktiveRolle}
+										aktiverProzess={aktiverProzess}
+										onSelect={handleProzessSelect}
+										prozesse={prozesse}
+									/>
+								</div>
+
+								{/* Center: Inbox/Outbox */}
+								<div className="overflow-hidden border-r">
+									<MessageList
+										inbox={inbox}
+										outbox={outbox}
+										selectedDatei={selection?.datei ?? null}
+										onSelect={handleSelect}
+										onRolleSwitch={handleRolleChange}
+									/>
+								</div>
+
+								{/* Right: Detail or Form */}
+								<div className="overflow-hidden">
+									{selection ? (
+										<MessageDetail
+											rolle={aktiveRolle}
+											box={selection.box}
+											datei={selection.datei}
+											onRolleSwitch={handleRolleChange}
+											onVerarbeitet={loadMessages}
+										/>
+									) : showForm ? (
+										<MessageForm
+											rolle={aktiveRolle}
+											aktiverProzess={aktiverProzess}
+											onSent={loadMessages}
+											prozesse={prozesse}
+										/>
+									) : (
+										<div className="p-4">
+											<p className="text-muted-foreground text-sm">
+												Nachricht auswählen oder Prozess wählen, um zu senden.
+											</p>
+										</div>
+									)}
+								</div>
+							</div>
+
+							{/* Bottom: Process Timeline */}
+							<ProcessTimeline
+								prozessKey={aktiverProzess}
+								aktiveRolle={aktiveRolle}
 								prozesse={prozesse}
 							/>
-						</div>
-
-						{/* Center: Inbox/Outbox */}
-						<div className="overflow-hidden border-r">
-							<MessageList
-								inbox={inbox}
-								outbox={outbox}
-								selectedDatei={selection?.datei ?? null}
-								onSelect={handleSelect}
-								onRolleSwitch={handleRolleChange}
-							/>
-						</div>
-
-						{/* Right: Detail or Form */}
-						<div className="overflow-hidden">
-							{selection ? (
-								<MessageDetail
-									rolle={aktiveRolle}
-									box={selection.box}
-									datei={selection.datei}
-									onRolleSwitch={handleRolleChange}
-									onVerarbeitet={loadMessages}
-								/>
-							) : showForm ? (
-								<MessageForm
-									rolle={aktiveRolle}
-									aktiverProzess={aktiverProzess}
-									onSent={loadMessages}
-									prozesse={prozesse}
-								/>
-							) : (
-								<div className="p-4">
-									<p className="text-muted-foreground text-sm">
-										Nachricht auswählen oder Prozess wählen, um zu senden.
-									</p>
-								</div>
-							)}
-						</div>
-					</div>
-
-					{/* Bottom: Process Timeline */}
-					<ProcessTimeline
-						prozessKey={aktiverProzess}
-						aktiveRolle={aktiveRolle}
-						prozesse={prozesse}
-					/>
+						</>
+					)}
 				</div>
 			</div>
 
