@@ -30,8 +30,9 @@ pub fn reduce(
 ) -> Result<ReducerOutput<BtrEivStammdatenState>, ProzessFehler> {
 	match (state, event) {
 		(BtrEivStammdatenState::Idle, BtrEivStammdatenEvent::StammdatenGesendet(sd)) => {
-			let absender = MarktpartnerId::new("9900000000004").expect("valid id");
-			let empfaenger = MarktpartnerId::new("9900000000005").expect("valid id");
+			// MP-IDs entsprechen mako-cli/src/init.rs::ROLLEN — Index 19 = BTR, 18 = EIV.
+			let absender = MarktpartnerId::new("9900000000019").expect("valid id");
+			let empfaenger = MarktpartnerId::new("9900000000018").expect("valid id");
 			let nachricht = Nachricht {
 				absender: absender.clone(),
 				absender_rolle: BetreiberTechnischeRessource,

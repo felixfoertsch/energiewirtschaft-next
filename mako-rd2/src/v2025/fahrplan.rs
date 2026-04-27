@@ -54,8 +54,9 @@ pub fn reduce(
 ) -> Result<ReducerOutput<FahrplanState>, ProzessFehler> {
 	match (state, event) {
 		(FahrplanState::Idle, FahrplanEvent::FahrplanGesendet(fp)) => {
-			let absender = MarktpartnerId::new("9900000000003").expect("valid id");
-			let empfaenger = MarktpartnerId::new("9900000000010").expect("valid id");
+			// MP-IDs entsprechen mako-cli/src/init.rs::ROLLEN — Index 18 = EIV, 13 = ÜNB.
+			let absender = MarktpartnerId::new("9900000000018").expect("valid id");
+			let empfaenger = MarktpartnerId::new("9900000000013").expect("valid id");
 			let (absender_rolle, empfaenger_rolle) = FAHRPLAN_ROLLENTUPEL[0];
 			let nachricht = Nachricht {
 				absender: absender.clone(),

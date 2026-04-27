@@ -56,8 +56,9 @@ pub fn reduce(
 ) -> Result<ReducerOutput<StammdatenState>, ProzessFehler> {
 	match (state, event) {
 		(StammdatenState::Idle, StammdatenEvent::StammdatenGesendet(sd)) => {
-			let absender = MarktpartnerId::new("9900000000003").expect("valid id");
-			let empfaenger = MarktpartnerId::new("9900000000010").expect("valid id");
+			// MP-IDs entsprechen mako-cli/src/init.rs::ROLLEN — Index 15 = ANB, 20 = DP.
+			let absender = MarktpartnerId::new("9900000000015").expect("valid id");
+			let empfaenger = MarktpartnerId::new("9900000000020").expect("valid id");
 			let (absender_rolle, empfaenger_rolle) = STAMMDATEN_ROLLENTUPEL[2];
 			let nachricht = Nachricht {
 				absender: absender.clone(),

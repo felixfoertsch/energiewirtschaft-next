@@ -38,8 +38,9 @@ pub fn reduce(
 ) -> Result<ReducerOutput<EngpassState>, ProzessFehler> {
 	match (state, event) {
 		(EngpassState::Idle, EngpassEvent::EngpassGemeldet(e)) => {
-			let absender = MarktpartnerId::new("9900000000010").expect("valid id");
-			let empfaenger = MarktpartnerId::new("9900000000003").expect("valid id");
+			// MP-IDs entsprechen mako-cli/src/init.rs::ROLLEN — Index 1 = NB, 15 = ANB.
+			let absender = MarktpartnerId::new("9900000000001").expect("valid id");
+			let empfaenger = MarktpartnerId::new("9900000000015").expect("valid id");
 			let (absender_rolle, empfaenger_rolle) = ENGPASS_ROLLENTUPEL[2];
 			let nachricht = Nachricht {
 				absender: absender.clone(),

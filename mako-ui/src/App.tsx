@@ -234,7 +234,11 @@ export function App() {
 
 				<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
 					{aktiveRolle === "" ? (
-						<WeltStartseite malos={MALOS} onRolleSelect={handleRolleChange} />
+						<WeltStartseite
+							malos={MALOS}
+							prozesseCount={prozesse.length}
+							onRolleSelect={handleRolleChange}
+						/>
 					) : (
 						<>
 							<WeltHero rolle={aktiveRolle} />

@@ -54,8 +54,9 @@ pub fn reduce(
 ) -> Result<ReducerOutput<AbrufState>, ProzessFehler> {
 	match (state, event) {
 		(AbrufState::Idle, AbrufEvent::AbrufGesendet(ak)) => {
-			let absender = MarktpartnerId::new("9900000000010").expect("valid id");
-			let empfaenger = MarktpartnerId::new("9900000000003").expect("valid id");
+			// MP-IDs entsprechen mako-cli/src/init.rs::ROLLEN — Index 16 = anfNB, 15 = ANB.
+			let absender = MarktpartnerId::new("9900000000016").expect("valid id");
+			let empfaenger = MarktpartnerId::new("9900000000015").expect("valid id");
 			let (absender_rolle, empfaenger_rolle) = ABRUF_ROLLENTUPEL[0];
 			let nachricht = Nachricht {
 				absender: absender.clone(),

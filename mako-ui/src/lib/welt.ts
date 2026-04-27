@@ -416,7 +416,7 @@ export const MALOS: MaLo[] = [
 		),
 	},
 	{
-		id: "52222222222",
+		id: "52222222227",
 		bezeichnung: "Bäckerei Klein, Bonn (Wind-PPA)",
 		story:
 			"Bäckerei Klein bezieht Strom direkt aus Brunos Windanlage TR-WIND-001 über einen PPA. Bei Engpässen aktiviert Anneli den Redispatch über Anton ANB → Ephraim EIV → Bruno BTR.",
@@ -464,7 +464,7 @@ export const MALOS: MaLo[] = [
 		),
 	},
 	{
-		id: "54444444444",
+		id: "54444444449",
 		bezeichnung: "Industriebäckerei Kerpen (Gas)",
 		story:
 			"Industriebäckerei Kerpen bezieht Erdgas. Tilda als Transportkunde nominiert bei Magnus, Anke speist aus, Selma puffert in Rehden, Ferdi transportiert.",
@@ -484,7 +484,7 @@ export const MALOS: MaLo[] = [
 		),
 	},
 	{
-		id: "55555555555",
+		id: "55555555550",
 		bezeichnung: "Wallbox Familie Schmidt (§14a SVE)",
 		story:
 			"Familie Schmidt hat eine 11 kW Wallbox als steuerbare Verbrauchseinrichtung. Norbert NB darf bei Engpässen über Lena LPB die Leistung dimmen.",
@@ -733,7 +733,7 @@ function defaultForKnownField(
 	if (key === "rechnungsnummer") return "RE-2026-0001";
 	if (key === "bezeichnung") return "Netznutzung Familie Schmidt";
 	if (key === "status") return enumDefault(prop, "Gemessen") ?? "Gemessen";
-	if (key === "einheit") return malo?.sparte === "gas" ? "kWh" : "kWh";
+	if (key === "einheit") return "kWh";
 
 	if (
 		key === "vertragsbeginn" ||
@@ -779,8 +779,13 @@ function defaultForKnownField(
 	if (key === "sollwert_kw") return 2500.0;
 	if (key === "installierte_leistung_kw") return 8000.0;
 	if (key === "betroffene_leistung_kw") return 1000.0;
-	if (key === "max_leistung_kw") return 11.0;
-	if (key === "leistung_kw") return 11.0;
+	// Wallbox-typische 11 kW vs. größere Erzeugungsanlagen — orientiert sich an MaLo-Ressource.
+	if (key === "max_leistung_kw" || key === "leistung_kw") {
+		if (malo?.ressource_id?.includes("WALLBOX")) return 11.0;
+		if (malo?.ressource_id?.includes("PV")) return 8000.0;
+		if (malo?.ressource_id?.includes("WIND")) return 3000.0;
+		return 11.0;
+	}
 	if (key === "peak_kw") return 8.0;
 	if (key === "verbrauch_kwh" || key === "verbrauch")
 		return malo?.sparte === "gas" ? 18500.0 : 3500.0;

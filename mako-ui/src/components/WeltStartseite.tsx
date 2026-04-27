@@ -3,6 +3,7 @@ import { ROLLEN } from "@/lib/rollen.ts";
 import { cn } from "@/lib/utils.ts";
 import {
 	type MaLo,
+	PERSONAS,
 	type Persona,
 	personaForRolle,
 	WELT_BESCHREIBUNG,
@@ -11,6 +12,7 @@ import {
 
 interface WeltStartseiteProps {
 	malos: MaLo[];
+	prozesseCount: number;
 	onRolleSelect: (rolle: string) => void;
 }
 
@@ -184,7 +186,7 @@ function StoryKarte({
 	);
 }
 
-export function WeltStartseite({ malos, onRolleSelect }: WeltStartseiteProps) {
+export function WeltStartseite({ malos, prozesseCount, onRolleSelect }: WeltStartseiteProps) {
 	return (
 		<main className="min-h-0 flex-1 overflow-y-auto bg-background">
 			<div className="mx-auto max-w-7xl space-y-5 p-5">
@@ -197,9 +199,11 @@ export function WeltStartseite({ malos, onRolleSelect }: WeltStartseiteProps) {
 					</div>
 					<p className="max-w-4xl text-muted-foreground text-sm leading-6">{WELT_BESCHREIBUNG}</p>
 					<div className="flex flex-wrap gap-2 text-xs">
-						<span className="rounded border bg-muted/30 px-2 py-1">33 Marktteilnehmer</span>
+						<span className="rounded border bg-muted/30 px-2 py-1">
+							{PERSONAS.length} Marktteilnehmer
+						</span>
 						<span className="rounded border bg-muted/30 px-2 py-1">{malos.length} Geschichten</span>
-						<span className="rounded border bg-muted/30 px-2 py-1">89 Prozesse</span>
+						<span className="rounded border bg-muted/30 px-2 py-1">{prozesseCount} Prozesse</span>
 						<span className="rounded border bg-muted/30 px-2 py-1">2 Sparten (Strom + Gas)</span>
 					</div>
 				</section>
