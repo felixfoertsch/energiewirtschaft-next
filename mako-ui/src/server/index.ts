@@ -228,9 +228,12 @@ app.get(`${API}/rollen`, (_req: Request, res: Response) => {
 		const p = join(MARKT, d);
 		return statSync(p).isDirectory() && d !== "log";
 	});
+	const rollenJson = readJsonSafe(join(MARKT, "rollen.json")) as Record<string, string>;
+	const slugToMpId = new Map<string, string>();
+	for (const [mpId, slug] of Object.entries(rollenJson)) slugToMpId.set(slug, mpId);
 	const rollen = dirs.map((name) => ({
 		name,
-		mp_id: "",
+		mp_id: slugToMpId.get(name) ?? "",
 		verzeichnis: name,
 	}));
 	res.json(rollen);
