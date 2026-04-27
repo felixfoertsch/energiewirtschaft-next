@@ -38,6 +38,27 @@ pub fn katalog() -> Vec<ProzessDef> {
 			],
 		),
 		ProzessDef::new(
+			"rd2_btr_eiv_stammdaten",
+			"Stammdaten BTR→EIV",
+			ProzessKategorie::Rd2,
+			vec![
+				SchrittDef::new(
+					"Stammdaten senden",
+					MarktRolle::BetreiberTechnischeRessource,
+					MarktRolle::Einsatzverantwortlicher,
+					"RdStammdaten",
+					NachrichtenTyp::RdXml,
+				),
+				SchrittDef::new(
+					"Bestätigen",
+					MarktRolle::Einsatzverantwortlicher,
+					MarktRolle::BetreiberTechnischeRessource,
+					"",
+					NachrichtenTyp::Intern,
+				),
+			],
+		),
+		ProzessDef::new(
 			"rd2_engpass",
 			"Engpass-Meldung",
 			ProzessKategorie::Rd2,
@@ -149,6 +170,9 @@ mod tests {
 
 	use super::*;
 	use crate::v2025::abruf::{AbrufEvent, AbrufState, reduce as reduce_abruf};
+	use crate::v2025::btr_eiv_stammdaten::{
+		BtrEivStammdatenEvent, BtrEivStammdatenState, reduce as reduce_btr_eiv_stammdaten,
+	};
 	use crate::v2025::engpass::{EngpassEvent, EngpassState, reduce as reduce_engpass};
 	use crate::v2025::fahrplan::{FahrplanEvent, FahrplanState, reduce as reduce_fahrplan};
 	use crate::v2025::nichtverfuegbarkeit::{
@@ -176,12 +200,39 @@ mod tests {
 			keys,
 			vec![
 				"rd2_abruf",
+				"rd2_btr_eiv_stammdaten",
 				"rd2_engpass",
 				"rd2_fahrplan",
 				"rd2_nichtverfuegbarkeit",
 				"rd2_stammdaten",
 			]
 		);
+	}
+
+	#[test]
+	fn btr_eiv_stammdaten_katalog_passt_zum_reducer_happy_path() {
+		let p = prozess("rd2_btr_eiv_stammdaten");
+		assert_eq!(p.schritte.len(), 2);
+
+		let out = reduce_btr_eiv_stammdaten(
+			BtrEivStammdatenState::Idle,
+			BtrEivStammdatenEvent::StammdatenGesendet(RdStammdaten {
+				ressource_id: "TR-001".to_string(),
+				ressource_typ: RessourceTyp::TechnischeRessource,
+				standort_malo: MaLoId::new("51238696788").unwrap(),
+				installierte_leistung_kw: 50.0,
+			}),
+		)
+		.expect("step 1");
+		let msg = out.nachrichten.first().expect("wire message");
+		assert_eq!(p.schritte[0].absender, msg.absender_rolle.slug());
+		assert_eq!(p.schritte[0].empfaenger, msg.empfaenger_rolle.slug());
+		assert_eq!(p.schritte[0].typ, "RdStammdaten");
+		assert!(matches!(msg.payload, NachrichtenPayload::RdStammdaten(_)));
+
+		let out =
+			reduce_btr_eiv_stammdaten(out.state, BtrEivStammdatenEvent::Bestaetigt).expect("step 2");
+		assert!(out.nachrichten.is_empty());
 	}
 
 	#[test]
